@@ -1,0 +1,57 @@
+# dependencies
+node_modules/
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+pnpm-lock.yaml # falls du npm/yarn nutzt
+
+# Expo / Metro / Caches
+.expo/
+.expo-shared/
+dist/
+web-build/
+.expo-env.d.ts
+.metro-health-check*
+.expo-dev-client.json
+.expo-settings.json
+.expo/*
+.bundle/
+.cache/
+.expo-shared/assets.json
+
+# Native (wir committen kein prebuild)
+ios/
+android/
+# falls du ios/android doch mal tracken willst (Bare Workflow),
+# dann NUR diese Unterordner ignorieren:
+# ios/Pods/
+# ios/build/
+# android/.gradle/
+# android/app/build/
+
+# Schlüssel / Zertifikate
+*.jks
+*.keystore
+*.p8
+*.p12
+*.pem
+*.key
+*.mobileprovision
+*.orig.*
+
+# Plattform-Builds
+*.apk
+*.aab
+*.ipa
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+*.log
+*.zip
+
+# Env
+.env
+.env*.local
+*.tsbuildinfo
