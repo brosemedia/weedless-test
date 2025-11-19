@@ -21,13 +21,21 @@ type Props = {
   onChange: (date: Date) => void;
   onDismiss: () => void;
   onConfirm: () => void;
+  minimumDate?: Date;
+  maximumDate?: Date;
 };
 
 const pad = (value: number) => String(value).padStart(2, '0');
 
-const clampToNow = (date: Date) => {
-  const now = new Date();
-  return date.getTime() > now.getTime() ? now : date;
+const clampToBounds = (date: Date, minDate?: Date, maxDate?: Date) => {
+  const next = new Date(date);
+  if (maxDate && next.getTime() > maxDate.getTime()) {
+    return new Date(maxDate);
+  }
+  if (minDate && next.getTime() < minDate.getTime()) {
+    return new Date(minDate);
+  }
+  return next;
 };
 
 const WEEKDAY_LABELS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
@@ -53,10 +61,22 @@ const hasNativeDatePicker =
   typeof UIManager?.getViewManagerConfig === 'function' &&
   Boolean(UIManager.getViewManagerConfig('RNDateTimePicker'));
 
-export const DateTimePickerModal: React.FC<Props> = ({ visible, date, locale, onChange, onDismiss, onConfirm }) => {
+export const DateTimePickerModal: React.FC<Props> = ({
+  visible,
+  date,
+  locale,
+  onChange,
+  onDismiss,
+  onConfirm,
+  minimumDate,
+  maximumDate,
+}) => {
   const needsFallback = Platform.OS === 'web' || !hasNativeDatePicker;
   const pickerMode = Platform.OS === 'ios' ? 'datetime' : 'date';
   const pickerDisplay = Platform.OS === 'ios' ? 'spinner' : 'calendar';
+  const maxDate = maximumDate ?? new Date();
+  const minDate = minimumDate;
+  const clampedValue = clampToBounds(date, minDate, maxDate);
 
   return (
     <Modal transparent animationType="fade" visible={visible} onRequestClose={onDismiss}>
@@ -64,16 +84,23 @@ export const DateTimePickerModal: React.FC<Props> = ({ visible, date, locale, on
         <Pressable style={StyleSheet.absoluteFill} onPress={onDismiss} />
         <View style={styles.modalCard}>
           {needsFallback ? (
-            <FallbackCalendarPicker locale={locale || 'de-DE'} value={date} onChange={onChange} />
+            <FallbackCalendarPicker
+              locale={locale || 'de-DE'}
+              value={clampedValue}
+              onChange={(next) => onChange(clampToBounds(next, minDate, maxDate))}
+              minimumDate={minDate}
+              maximumDate={maxDate}
+            />
           ) : (
             <DateTimePicker
-              value={date}
+              value={clampedValue}
               mode={pickerMode}
               display={pickerDisplay}
-              maximumDate={new Date()}
+              maximumDate={maxDate}
+              minimumDate={minDate}
               onChange={(_event: unknown, selectedDate?: Date) => {
                 if (selectedDate) {
-                  onChange(clampToNow(selectedDate));
+                  onChange(clampToBounds(selectedDate, minDate, maxDate));
                 }
               }}
               locale={locale}
@@ -98,33 +125,45 @@ type FallbackCalendarPickerProps = {
   locale: string;
   value: Date;
   onChange: (date: Date) => void;
+  minimumDate?: Date;
+  maximumDate?: Date;
 };
 
-const FallbackCalendarPicker: React.FC<FallbackCalendarPickerProps> = ({ locale, value, onChange }) => {
+const FallbackCalendarPicker: React.FC<FallbackCalendarPickerProps> = ({
+  locale,
+  value,
+  onChange,
+  minimumDate,
+  maximumDate,
+}) => {
   const [visibleMonth, setVisibleMonth] = useState(startOfMonth(value));
-  const [selected, setSelected] = useState(clampToNow(value));
-  const today = new Date();
+  const [selected, setSelected] = useState(clampToBounds(value, minimumDate, maximumDate));
+  const upperBound = maximumDate ?? new Date();
+  const lowerBound = minimumDate;
   const calendar = useMemo(() => buildCalendarMatrix(visibleMonth), [visibleMonth]);
-  const canGoNextMonth = isBefore(visibleMonth, startOfMonth(today));
+  const today = new Date();
+  const canGoNextMonth = isBefore(visibleMonth, startOfMonth(upperBound));
+  const canGoPrevMonth = !lowerBound || isAfter(visibleMonth, startOfMonth(lowerBound));
 
   useEffect(() => {
-    const normalized = clampToNow(value);
+    const normalized = clampToBounds(value, lowerBound, upperBound);
     setSelected(normalized);
     setVisibleMonth(startOfMonth(normalized));
-  }, [value]);
+  }, [value, lowerBound?.getTime(), upperBound.getTime()]);
 
   const updateSelected = (mutator: (draft: Date) => void) => {
     setSelected((prev) => {
       const next = new Date(prev);
       mutator(next);
-      const clamped = clampToNow(next);
+      const clamped = clampToBounds(next, lowerBound, upperBound);
       onChange(clamped);
       return clamped;
     });
   };
 
   const handleSelectDay = (day: Date) => {
-    if (isAfter(day, today)) return;
+    if (isAfter(day, upperBound)) return;
+    if (lowerBound && isBefore(day, lowerBound)) return;
     updateSelected((draft) => {
       draft.setFullYear(day.getFullYear(), day.getMonth(), day.getDate());
     });
@@ -133,6 +172,7 @@ const FallbackCalendarPicker: React.FC<FallbackCalendarPickerProps> = ({ locale,
 
   const handleMonthChange = (delta: number) => {
     if (delta > 0 && !canGoNextMonth) return;
+    if (delta < 0 && !canGoPrevMonth) return;
     setVisibleMonth((prev) => addMonths(prev, delta));
   };
 
@@ -151,7 +191,7 @@ const FallbackCalendarPicker: React.FC<FallbackCalendarPickerProps> = ({ locale,
   };
 
   const handleSetNow = () => {
-    const now = clampToNow(new Date());
+    const now = clampToBounds(new Date(), lowerBound, upperBound);
     setSelected(now);
     setVisibleMonth(startOfMonth(now));
     onChange(now);
@@ -166,7 +206,11 @@ const FallbackCalendarPicker: React.FC<FallbackCalendarPickerProps> = ({ locale,
     <View style={styles.fallbackPicker}>
       <Text style={styles.fallbackSummary}>{summary}</Text>
       <View style={styles.calendarHeader}>
-        <Pressable style={styles.calendarHeaderButton} onPress={() => handleMonthChange(-1)}>
+        <Pressable
+          style={[styles.calendarHeaderButton, !canGoPrevMonth && styles.disabledButton]}
+          onPress={() => handleMonthChange(-1)}
+          disabled={!canGoPrevMonth}
+        >
           <Text style={styles.calendarHeaderTitle}>‹</Text>
         </Pressable>
         <Text style={styles.calendarHeaderTitle}>
@@ -194,7 +238,7 @@ const FallbackCalendarPicker: React.FC<FallbackCalendarPickerProps> = ({ locale,
         <View key={index} style={styles.weekRow}>
           {week.map((day) => {
             const inMonth = day.getMonth() === visibleMonth.getMonth();
-            const disabled = isAfter(day, today);
+            const disabled = isAfter(day, upperBound) || (lowerBound ? isBefore(day, lowerBound) : false);
             const selectedDay = isSameDay(day, selected);
             const isToday = isSameDay(day, today);
 

@@ -6,10 +6,12 @@ import { ThemedView, ThemedText, useTheme } from '../design/theme';
 import { spacing } from '../design/tokens';
 import { HEADER_TOTAL_HEIGHT } from '../components/AppHeader';
 import { useHeaderTransparency } from '../hooks/useHeaderTransparency';
+import { useUiStore } from '../store/ui';
 
 export default function Settings() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const headerAccessoryHeight = useUiStore((s) => s.headerAccessoryHeight);
   const profile = useStore((s) => s.profile);
   const setBaseline = useStore((s) => s.setBaseline);
   const setGoalMode = useStore((s) => s.setGoalMode);
@@ -48,7 +50,7 @@ export default function Settings() {
       <ScrollView
         contentContainerStyle={{
           paddingHorizontal: spacing.l as any,
-          paddingTop: insets.top + HEADER_TOTAL_HEIGHT + (spacing.l as any),
+          paddingTop: insets.top + HEADER_TOTAL_HEIGHT + headerAccessoryHeight + (spacing.l as any),
           paddingBottom: Math.max(spacing.l as any, insets.bottom),
           gap: spacing.m as any,
         }}

@@ -11,11 +11,13 @@ import { aggregate } from '../lib/stats';
 import { mergeMilestonesWithDefaults, milestonesDiffer, resolveMilestoneIcon } from '../data/milestones';
 import type { Milestone as MilestoneType } from '../types/milestone';
 import { useHeaderTransparency } from '../hooks/useHeaderTransparency';
+import { useUiStore } from '../store/ui';
 
 const formatDays = (value: number) => `${value} ${value === 1 ? 'Tag' : 'Tage'}`;
 
 export default function Milestones() {
   const insets = useSafeAreaInsets();
+  const headerAccessoryHeight = useUiStore((s) => s.headerAccessoryHeight);
   const milestones = useStore((s) => s.milestones);
   const setMilestones = useStore((s) => s.setMilestones);
   const awardMilestone = useStore((s) => s.awardMilestone);
@@ -54,6 +56,7 @@ export default function Milestones() {
     const total = checkins.length;
     (milestones || []).forEach((m) => {
       if (m.achievedAt) return;
+      if (m.kind === 'pause') return;
       if (m.kind === 'streak' && currentStreak >= (m.threshold || 0)) awardMilestone(m.id);
       else if (m.kind === 'count' && total >= (m.threshold || 0)) awardMilestone(m.id);
       else if (m.kind === 'money' && agg.moneySaved >= (m.threshold || 0)) awardMilestone(m.id);
@@ -61,17 +64,20 @@ export default function Milestones() {
   }, [checkins, milestones, currentStreak, agg]);
 
   const progressFor = (m: MilestoneType) => {
+    if (m.kind === 'pause') return m.achievedAt ? 1 : 0;
     const totalNow = m.kind === 'streak' ? currentStreak : m.kind === 'count' ? checkins.length : agg.moneySaved;
     const th = m.threshold || 1;
     return Math.max(0, Math.min(1, totalNow / th));
   };
   const remainingFor = (m: MilestoneType) => {
+    if (m.kind === 'pause') return m.achievedAt ? 0 : m.threshold || 1;
     const totalNow = m.kind === 'streak' ? currentStreak : m.kind === 'count' ? checkins.length : agg.moneySaved;
     return Math.max(0, (m.threshold || 0) - totalNow);
   };
   const remainingLabel = (m: MilestoneType) => {
     const remaining = Math.max(0, remainingFor(m));
     if (remaining <= 0) return 'geschafft!';
+    if (m.kind === 'pause') return 'Pause abschließen';
     if (m.kind === 'money') {
       return `noch ${Math.round(remaining).toLocaleString('de-DE')} €`;
     }
@@ -84,7 +90,7 @@ export default function Milestones() {
     <ScrollView
       contentContainerStyle={{
         paddingHorizontal: spacing.xl as any,
-        paddingTop: insets.top + HEADER_TOTAL_HEIGHT + (spacing.l as any),
+        paddingTop: insets.top + HEADER_TOTAL_HEIGHT + headerAccessoryHeight + (spacing.l as any),
         paddingBottom: Math.max(spacing.l as any, insets.bottom),
         gap: spacing.m as any,
       }}
@@ -116,7 +122,9 @@ export default function Milestones() {
               ? `Ziel: ${formatDays(m.threshold || 0)}`
               : m.kind === 'count'
               ? `Ziel: ${m.threshold} Tracken`
-              : `Ziel: ${(m.threshold || 0).toLocaleString('de-DE')} €`;
+              : m.kind === 'money'
+              ? `Ziel: ${(m.threshold || 0).toLocaleString('de-DE')} €`
+              : 'Ziel: Pause erfolgreich abschließen';
           const statusNode = completed ? (
             <View style={{ alignItems: 'center', marginTop: spacing.m as any }}>
               <View style={{ backgroundColor: 'rgba(255,255,255,0.25)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.pill, marginBottom: 8 }}>

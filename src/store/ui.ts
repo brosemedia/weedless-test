@@ -6,6 +6,8 @@ type UIState = {
   showQuickActions: (key: string) => void;
   headerAtTop: boolean;
   setHeaderAtTop: (value: boolean) => void;
+  headerAccessoryHeight: number;
+  setHeaderAccessoryHeight: (height: number) => void;
 };
 
 export const useUiStore = create<UIState>((set) => ({
@@ -21,4 +23,7 @@ export const useUiStore = create<UIState>((set) => ({
     })),
   headerAtTop: false,
   setHeaderAtTop: (value) => set((state) => (state.headerAtTop === value ? state : { headerAtTop: value })),
+  headerAccessoryHeight: 0,
+  setHeaderAccessoryHeight: (height) =>
+    set((state) => (state.headerAccessoryHeight === height ? state : { headerAccessoryHeight: height })),
 }));

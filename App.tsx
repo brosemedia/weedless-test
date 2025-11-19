@@ -34,6 +34,10 @@ import BreathScreen from './src/screens/BreathScreen';
 import AppHeader from './src/components/AppHeader';
 import { HydrationGate } from './src/components/HydrationGate';
 import GlobalQuickActions from './src/components/GlobalQuickActions';
+import PausePlannerScreen from './src/screens/pause/PausePlannerScreen';
+import PauseHistoryScreen from './src/screens/pause/PauseHistoryScreen';
+import { useUiStore } from './src/store/ui';
+import PauseHeaderBadge from './src/components/PauseHeaderBadge';
 
 const HERO_PLANT_BACKGROUND = require('./assets/hero_plant.png');
 
@@ -57,6 +61,8 @@ const ROUTE_TITLES: Record<string, string> = {
   ExportData: 'Daten exportieren',
   Help: 'Hilfe',
   ZenGlide: 'ZenGlide',
+  PausePlan: 'Pause',
+  PauseHistory: 'Pausen',
 };
 
 const HIDDEN_HEADER_ROUTES = new Set(['ZenGlide', 'Wissen']);
@@ -100,6 +106,8 @@ type RootStackParamList = {
   Settings: { screen?: keyof SettingsStackParamList } | undefined;
   Breath: undefined;
   ZenGlide: undefined;
+  PausePlan: undefined;
+  PauseHistory: undefined;
 } & MinigameStackParamList;
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 
@@ -195,6 +203,8 @@ function NavigationWithTheme({ navRef, onReady, onStateChange }: NavigationWithT
       <RootStack.Screen name="Settings" component={SettingsNavigator} />
       <RootStack.Screen name="Help" component={Help} />
       <RootStack.Screen name="ZenGlide" component={ZenGlideLazy} options={{ headerShown: false }} />
+      <RootStack.Screen name="PausePlan" component={PausePlannerScreen} />
+      <RootStack.Screen name="PauseHistory" component={PauseHistoryScreen} />
       </RootStack.Navigator>
     </NavigationContainer>
   );
@@ -209,6 +219,7 @@ const MainApp: React.FC = () => {
     'Inter-SemiBold': require('./assets/fonts/Inter-SemiBold.ttf'),
     'Inter-Bold': require('./assets/fonts/Inter-Bold.ttf'),
   });
+  const setHeaderAccessoryHeight = useUiStore((s) => s.setHeaderAccessoryHeight);
 
   const updateHeaderTitle = React.useCallback(
     (state?: NavStateLike) => {
@@ -228,6 +239,12 @@ const MainApp: React.FC = () => {
       updateHeaderTitle();
     }
   }, [navRef, updateHeaderTitle]);
+
+  React.useEffect(() => {
+    if (activeRoute && HIDDEN_HEADER_ROUTES.has(activeRoute)) {
+      setHeaderAccessoryHeight(0);
+    }
+  }, [activeRoute, setHeaderAccessoryHeight]);
 
   if (!fontsLoaded) {
     return (
@@ -253,7 +270,7 @@ const MainApp: React.FC = () => {
               {!activeRoute || !HIDDEN_HEADER_ROUTES.has(activeRoute) ? (
                 <AppHeader navRef={navRef} title={headerTitle} />
               ) : null}
-              <GlobalQuickActions />
+              <GlobalQuickActions navRef={navRef} />
             </View>
           </ImageBackground>
         </SafeAreaProvider>

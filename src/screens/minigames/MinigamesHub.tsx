@@ -6,6 +6,7 @@ import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HEADER_TOTAL_HEIGHT } from '../../components/AppHeader';
 import { useHeaderTransparency } from '../../hooks/useHeaderTransparency';
+import { useUiStore } from '../../store/ui';
 const CARD_COLOR = '#D99A25';
 
 export type TapResultsParams = {
@@ -45,6 +46,7 @@ async function readTodayProgress(): Promise<boolean> {
 
 export default function MinigamesHub({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const headerAccessoryHeight = useUiStore((s) => s.headerAccessoryHeight);
   const [tapDone, setTapDone] = useState(false);
   const { handleScroll } = useHeaderTransparency();
 
@@ -65,7 +67,7 @@ export default function MinigamesHub({ navigation }: Props) {
   const badgeStyle = tapDone ? styles.badgeDone : styles.badgeOpen;
 
   const contentStyle = {
-    paddingTop: insets.top + HEADER_TOTAL_HEIGHT + 12,
+    paddingTop: insets.top + HEADER_TOTAL_HEIGHT + headerAccessoryHeight + 12,
   };
 
   return (

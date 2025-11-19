@@ -4,17 +4,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing } from '../design/tokens';
 import { HEADER_TOTAL_HEIGHT } from '../components/AppHeader';
 import { useHeaderTransparency } from '../hooks/useHeaderTransparency';
+import { useUiStore } from '../store/ui';
 const CARD_COLOR = '#D99A25';
 
 export default function Help() {
   const insets = useSafeAreaInsets();
+  const headerAccessoryHeight = useUiStore((s) => s.headerAccessoryHeight);
   const { handleScroll } = useHeaderTransparency();
   return (
     <ScrollView
       contentContainerStyle={[
         styles.container,
         {
-          paddingTop: insets.top + HEADER_TOTAL_HEIGHT + spacing.l,
+          paddingTop: insets.top + HEADER_TOTAL_HEIGHT + headerAccessoryHeight + spacing.l,
           paddingBottom: Math.max(spacing.xl, insets.bottom + spacing.m),
         },
       ]}

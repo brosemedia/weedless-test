@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, TextInput, Switch, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import type { PaidByUser, ConsumptionMethod } from '../types/profile';
 
 // Types
 export type DailyUseEvent = {
@@ -33,6 +34,11 @@ export type DailyCheckinData = {
   mood1to5: number; // Stimmung 1–5
   sleepHours: number; // Schlafstunden der letzten Nacht
   notes?: string;
+  consumptionPaidByUser?: PaidByUser;
+  consumptionAmountSpentEUR?: number;
+  consumptionSessionMinutes?: number;
+  consumptionMethod?: ConsumptionMethod;
+  consumptionJoints?: number;
   uses?: DailyUseEvent[]; // optionale Liste einzelner Konsumereignisse
   pauses?: DailyPauseEvent[]; // optionale Liste von Pausen/Entzugsnotizen
 };

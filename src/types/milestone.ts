@@ -1,4 +1,4 @@
-export type MilestoneKind = 'streak' | 'count' | 'money';
+export type MilestoneKind = 'streak' | 'count' | 'money' | 'pause';
 
 export type MilestoneIconKey =
   | 'streakSeed'
@@ -30,4 +30,3 @@ export type Milestone = {
   kind: MilestoneKind;
   threshold: number;
 };
-

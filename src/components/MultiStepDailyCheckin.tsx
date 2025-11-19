@@ -1,8 +1,16 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, Modal, Pressable } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import Slider from '@react-native-community/slider';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
+import { useApp } from '../store/app';
+import ConsumptionFormFields from './ConsumptionFormFields';
+import {
+  createEmptyConsumptionForm,
+  deriveDefaultAmountSpent,
+  gramsPerJointFromProfile,
+  normalizeConsumptionForm,
+  type ConsumptionFormValues,
+} from '../lib/consumption';
 
 export type DailyUseEvent = {
   type: 'use';
@@ -33,6 +41,11 @@ export type DailyCheckinData = {
   mood1to5: number;
   sleepHours: number;
   notes?: string;
+  consumptionPaidByUser?: ConsumptionFormValues['paidByUser'];
+  consumptionAmountSpentEUR?: number;
+  consumptionSessionMinutes?: number;
+  consumptionMethod?: ConsumptionFormValues['method'];
+  consumptionJoints?: number;
   uses?: DailyUseEvent[];
   pauses?: DailyPauseEvent[];
 };
@@ -46,9 +59,7 @@ export type Props = {
 
 type StepKey =
   | 'mode'
-  | 'amount'
-  | 'form'
-  | 'time'
+  | 'consumption'
   | 'craving'
   | 'sleep'
   | 'sym_schlaf'
@@ -59,15 +70,30 @@ type StepKey =
   | 'notes'
   | 'review';
 
+const USE_METHOD_LABELS: Record<ConsumptionFormValues['method'], DailyUseEvent['form']> = {
+  joint: 'Joint',
+  vape: 'Vape',
+  bong: 'Bong',
+  edible: 'Edible',
+  other: 'Andere',
+};
+
 export default function MultiStepDailyCheckin({ initial, onSubmit, onCancel, style }: Props): React.ReactElement {
   const nowISO = useMemo(() => new Date().toISOString(), []);
   const [modeChoice, setModeChoice] = useState<boolean | null>(
     typeof initial?.usedToday === 'boolean' ? initial.usedToday : null
   );
   const usedToday = modeChoice === true;
-  const [amountGrams, setAmountGrams] = useState<string>((initial?.amountGrams ?? 0).toString());
-  const [form, setForm] = useState<DailyUseEvent['form']>(undefined);
-  const [time, setTime] = useState<string>('');
+  const profile = useApp((s) => s.profile);
+  const dayLogs = useApp((s) => s.dayLogs);
+  const gramsPerJoint = useMemo(() => gramsPerJointFromProfile(profile), [profile]);
+  const defaultAmountSuggestion = useMemo(
+    () => deriveDefaultAmountSpent(dayLogs, profile),
+    [dayLogs, profile]
+  );
+  const [consumptionForm, setConsumptionForm] = useState<ConsumptionFormValues>(() =>
+    createEmptyConsumptionForm()
+  );
   const [cravings, setCravings] = useState<string>((initial?.cravings0to10 ?? 0).toString());
   const [sleep, setSleep] = useState<string>((initial?.sleepHours ?? 7).toString());
   const [notes, setNotes] = useState<string>(initial?.notes ?? '');
@@ -77,22 +103,17 @@ export default function MultiStepDailyCheckin({ initial, onSubmit, onCancel, sty
   const [symUnruhe, setSymUnruhe] = useState<string>('0');
   const [symAppetit, setSymAppetit] = useState<string>('0');
   const [symSchwitz, setSymSchwitz] = useState<string>('0');
-  const [timePickerVisible, setTimePickerVisible] = useState(false);
-  const parsedTime = React.useMemo(() => {
-    if (!/^\d{2}:\d{2}$/.test(time)) return new Date();
-    const [hh, mm] = time.split(':').map((part) => parseInt(part, 10));
-    const base = new Date();
-    base.setHours(Math.min(23, Math.max(0, hh)), Math.min(59, Math.max(0, mm)), 0, 0);
-    return base;
-  }, [time]);
-  const [timeDraft, setTimeDraft] = useState<Date>(parsedTime);
   React.useEffect(() => {
-    if (timePickerVisible) {
-      setTimeDraft(parsedTime);
+    if (initial?.amountGrams && initial.amountGrams > 0) {
+      setConsumptionForm((prev) => ({
+        ...prev,
+        quantity: String(initial.amountGrams),
+        unit: 'grams',
+      }));
     }
-  }, [parsedTime, timePickerVisible]);
+  }, [initial?.amountGrams]);
 
-  const useDaySteps: StepKey[] = ['mode', 'amount', 'form', 'time', 'craving', 'sleep', 'notes', 'review'];
+  const useDaySteps: StepKey[] = ['mode', 'consumption', 'craving', 'sleep', 'notes', 'review'];
   const pauseDaySteps: StepKey[] = ['mode', 'craving', 'sleep', 'sym_schlaf', 'sym_reiz', 'sym_unruhe', 'sym_appetit', 'sym_schwitz', 'notes', 'review'];
   const steps: StepKey[] = useMemo(() => {
     if (modeChoice === true) {
@@ -110,9 +131,7 @@ export default function MultiStepDailyCheckin({ initial, onSubmit, onCancel, sty
 
   const titles: Record<StepKey, { emoji: string; title: string }> = {
     mode: { emoji: modeChoice === null ? '🤔' : usedToday ? '🌿' : '⏸️', title: 'Wie war dein Tag?' },
-    amount: { emoji: '⚖️', title: 'Menge in Gramm' },
-    form: { emoji: '🍃', title: 'Form des Konsums' },
-    time: { emoji: '🕒', title: 'Uhrzeit wählen' },
+    consumption: { emoji: '🌿', title: 'Konsum erfassen' },
     craving: { emoji: '🔥', title: 'Suchtdruck (0–10)' },
     sleep: { emoji: '😴', title: 'Schlaf (h)' },
     sym_schlaf: { emoji: '🛌', title: 'Schlafstörung (0–10)' },
@@ -184,37 +203,6 @@ export default function MultiStepDailyCheckin({ initial, onSubmit, onCancel, sty
     );
   }
 
-  function GramSlider({ value, set, min = 0, max = 20, step = 0.1 }: { value: number; set: (v: string) => void; min?: number; max?: number; step?: number }) {
-    const [live, setLive] = useState(() => Math.max(min, Math.min(max, Number.isFinite(value) ? value : min)));
-    React.useEffect(() => {
-      setLive(Math.max(min, Math.min(max, Number.isFinite(value) ? value : min)));
-    }, [value, min, max]);
-    const fmt = (n: number) => `${n.toFixed(2)} g`;
-    return (
-      <View>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-          <Text style={styles.label}>{fmt(min)}</Text>
-          <Text style={[styles.label, { fontWeight: '700' }]}>{fmt(live)}</Text>
-          <Text style={styles.label}>{fmt(max)}</Text>
-        </View>
-        <Slider
-          value={live}
-          step={step}
-          minimumValue={min}
-          maximumValue={max}
-          minimumTrackTintColor="#16A34A"
-          maximumTrackTintColor="rgba(74,42,22,0.15)"
-          thumbTintColor="#16A34A"
-          onValueChange={(v: number) => setLive(Number(v.toFixed(2)))}
-          onSlidingComplete={(v: number) => {
-            const clamped = Math.max(min, Math.min(max, v));
-            set(clamped.toFixed(2));
-          }}
-        />
-      </View>
-    );
-  }
-
   const isUseDay = modeChoice === true;
   const isPauseDay = modeChoice === false;
   const errors = useMemo(() => {
@@ -226,9 +214,11 @@ export default function MultiStepDailyCheckin({ initial, onSubmit, onCancel, sty
     const sl = toNum(sleep);
     if (!Number.isFinite(sl) || sl < 0 || sl > 24) e.sleep = 'Bitte Stunden 0-24 eingeben';
     if (isUseDay) {
-      const ag = toNum(amountGrams);
-      if (!Number.isFinite(ag) || ag < 0 || ag > 100) e.amountGrams = 'Bitte Menge 0-100g eingeben';
-      if (time && !/^\d{2}:\d{2}$/.test(time)) e.time = 'Zeit als HH:MM eingeben';
+      const normalized = normalizeConsumptionForm(consumptionForm, gramsPerJoint);
+      if (normalized.grams <= 0) e.consumption = 'Bitte Menge größer 0 angeben.';
+      if (consumptionForm.paidByUser === 'yes' && !normalized.amountSpent) {
+        e.amountSpent = 'Bitte Betrag größer 0 € eingeben.';
+      }
     } else if (isPauseDay) {
       const s1 = toNum(symSchlaf);
       const s2 = toNum(symReiz);
@@ -242,23 +232,61 @@ export default function MultiStepDailyCheckin({ initial, onSubmit, onCancel, sty
       if (!inRange(s5, 0, 10)) e.symSchwitz = '0-10';
     }
     return e;
-  }, [isUseDay, isPauseDay, amountGrams, time, symSchlaf, symReiz, symUnruhe, symAppetit, symSchwitz, cravings, sleep]);
+  }, [
+    isUseDay,
+    isPauseDay,
+    consumptionForm,
+    gramsPerJoint,
+    symSchlaf,
+    symReiz,
+    symUnruhe,
+    symAppetit,
+    symSchwitz,
+    cravings,
+    sleep,
+  ]);
 
+  const normalizedConsumption = normalizeConsumptionForm(consumptionForm, gramsPerJoint);
+  const amountGramsValue = usedToday ? Math.max(0, normalizedConsumption.grams) : 0;
   const data: DailyCheckinData = {
     dateISO: initial?.dateISO ?? nowISO,
     usedToday,
-    amountGrams: Number.isFinite(+amountGrams) ? Math.max(0, +amountGrams) : 0,
+    amountGrams: amountGramsValue,
     cravings0to10: Math.max(0, Math.min(10, Number.isFinite(+cravings) ? +cravings : 0)),
     mood1to5: 3,
     sleepHours: Math.max(0, Number.isFinite(+sleep) ? +sleep : 0),
     notes: notes.trim() || undefined,
-    uses: usedToday ? [{ type: 'use', amountGrams: Number.isFinite(+amountGrams) ? Math.max(0, +amountGrams) : 0, form, time: time || undefined }] : undefined,
-    pauses: !usedToday ? [{ type: 'pause', schlafstoerung: +symSchlaf || 0, reizbarkeit: +symReiz || 0, unruhe: +symUnruhe || 0, appetit: +symAppetit || 0, schwitzen: +symSchwitz || 0, craving0to10: +cravings || 0 }] : undefined,
+    consumptionPaidByUser: usedToday ? normalizedConsumption.paidByUser : undefined,
+    consumptionAmountSpentEUR: usedToday ? normalizedConsumption.amountSpent : undefined,
+    consumptionSessionMinutes: usedToday ? normalizedConsumption.sessionMinutes : undefined,
+    consumptionMethod: usedToday ? consumptionForm.method : undefined,
+    consumptionJoints: usedToday ? normalizedConsumption.joints : undefined,
+    uses: usedToday
+      ? [
+          {
+            type: 'use',
+            amountGrams: amountGramsValue,
+            form: USE_METHOD_LABELS[consumptionForm.method],
+          },
+        ]
+      : undefined,
+    pauses: !usedToday
+      ? [
+          {
+            type: 'pause',
+            schlafstoerung: +symSchlaf || 0,
+            reizbarkeit: +symReiz || 0,
+            unruhe: +symUnruhe || 0,
+            appetit: +symAppetit || 0,
+            schwitzen: +symSchwitz || 0,
+            craving0to10: +cravings || 0,
+          },
+        ]
+      : undefined,
   };
 
   function stepError(k: StepKey): string | undefined {
-    if (k === 'amount') return errors.amountGrams;
-    if (k === 'time') return errors.time;
+    if (k === 'consumption') return errors.consumption ?? errors.amountSpent;
     if (k === 'craving') return errors.cravings;
     if (k === 'sleep') return errors.sleep;
     if (k === 'sym_schlaf') return errors.symSchlaf;
@@ -307,71 +335,21 @@ export default function MultiStepDailyCheckin({ initial, onSubmit, onCancel, sty
             </View>
           </View>
         );
-      case 'amount':
+      case 'consumption':
         return (
-          <View style={styles.inputBlock}>
-            <Text style={styles.label}>Menge in Gramm</Text>
-            <GramSlider value={Number(amountGrams || '0') || 0} set={setAmountGrams} min={0} max={20} step={0.1} />
-            <Text style={styles.helper}>Schiebe den Regler für eine genaue Menge.</Text>
-            {errors.amountGrams ? <Text style={styles.error}>{errors.amountGrams}</Text> : null}
-          </View>
-        );
-      case 'form':
-        return (
-          <View style={styles.inputBlock}>
-            <Text style={styles.label}>Form</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {(['Joint', 'Vape', 'Bong', 'Edible', 'Andere'] as const).map((f) => (
-                <TouchableOpacity key={f} onPress={() => setForm(f)} style={[styles.chip, form === f && styles.chipActive]} accessibilityRole="button">
-                  <Text style={[styles.chipLabel, form === f && styles.chipLabelActive]}>{f}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        );
-      case 'time':
-        return (
-          <View style={styles.inputBlock}>
-            <Text style={styles.label}>Uhrzeit</Text>
-            <TouchableOpacity style={styles.pickerField} onPress={() => setTimePickerVisible(true)} accessibilityRole="button">
-              <Text style={styles.pickerValue}>{time ? `${time} Uhr` : 'Zeit auswählen'}</Text>
-              <Ionicons name="time-outline" size={18} color="#4A2A16" />
-            </TouchableOpacity>
-            {errors.time ? <Text style={styles.error}>{errors.time}</Text> : null}
-            {timePickerVisible ? (
-              <Modal transparent animationType="fade" visible onRequestClose={() => setTimePickerVisible(false)}>
-                <View style={styles.timeModalBackdrop}>
-                  <Pressable style={StyleSheet.absoluteFill} onPress={() => setTimePickerVisible(false)} />
-                  <View style={styles.timeModalCard}>
-                    <Text style={styles.timeModalTitle}>Uhrzeit wählen</Text>
-                    <DateTimePicker
-                      value={timeDraft}
-                      mode="time"
-                      display={Platform.OS === 'ios' ? 'spinner' : 'spinner'}
-                      onChange={(_event, selected) => {
-                        if (selected) {
-                          setTimeDraft(selected);
-                        }
-                      }}
-                    />
-                    <View style={styles.timeModalActions}>
-                      <TouchableOpacity style={styles.buttonGhost} onPress={() => setTimePickerVisible(false)}>
-                        <Text style={styles.buttonGhostLabel}>Abbrechen</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.button, { flex: 1 }]}
-                        onPress={() => {
-                          setTime(formatTimeString(timeDraft));
-                          setTimePickerVisible(false);
-                        }}
-                      >
-                        <Text style={styles.buttonLabel}>Übernehmen</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </View>
-              </Modal>
-            ) : null}
+          <View style={{ gap: 12 }}>
+            <ConsumptionFormFields
+              value={consumptionForm}
+              suggestedAmount={defaultAmountSuggestion}
+              onChange={(patch) =>
+                setConsumptionForm((prev) => ({
+                  ...prev,
+                  ...patch,
+                }))
+              }
+            />
+            {errors.consumption ? <Text style={styles.error}>{errors.consumption}</Text> : null}
+            {errors.amountSpent ? <Text style={styles.error}>{errors.amountSpent}</Text> : null}
           </View>
         );
       case 'craving':
@@ -431,13 +409,32 @@ export default function MultiStepDailyCheckin({ initial, onSubmit, onCancel, sty
             <TextInput value={notes} onChangeText={setNotes} placeholder="Wie ging es dir heute?" style={[styles.input, styles.multiline]} multiline />
           </View>
         );
-      case 'review':
+      case 'review': {
+        const amountLabel =
+          amountGramsValue > 0
+            ? `${amountGramsValue.toFixed(2)} g${
+                normalizedConsumption.joints ? ` · ${normalizedConsumption.joints.toFixed(2)} Joints` : ''
+              }`
+            : 'Keine Angabe';
+        const durationLabel =
+          normalizedConsumption.sessionMinutes && normalizedConsumption.sessionMinutes > 0
+            ? `${normalizedConsumption.sessionMinutes} Minuten`
+            : 'Keine Angabe';
+        const costLabel =
+          consumptionForm.paidByUser === 'yes'
+            ? normalizedConsumption.amountSpent
+              ? `${normalizedConsumption.amountSpent.toFixed(2)} €`
+              : 'Betrag offen'
+            : consumptionForm.paidByUser === 'no'
+            ? 'Nur mitgeraucht'
+            : 'Keine Angabe';
         const reviewRows = usedToday
           ? [
               { icon: 'leaf-outline' as const, label: 'Modus', value: 'Konsumtag' },
-              { icon: 'analytics-outline' as const, label: 'Menge', value: `${(Number(amountGrams) || 0).toFixed(2)} g` },
-              { icon: 'flask-outline' as const, label: 'Form', value: form || 'Keine Angabe' },
-              { icon: 'time-outline' as const, label: 'Zeitpunkt', value: time || 'Keine Angabe' },
+              { icon: 'analytics-outline' as const, label: 'Menge', value: amountLabel },
+              { icon: 'flask-outline' as const, label: 'Art', value: USE_METHOD_LABELS[consumptionForm.method] },
+              { icon: 'time-outline' as const, label: 'Dauer', value: durationLabel },
+              { icon: 'wallet-outline' as const, label: 'Kosten', value: costLabel },
             ]
           : [
               { icon: 'calendar-outline' as const, label: 'Modus', value: 'Pausentag' },
@@ -480,6 +477,7 @@ export default function MultiStepDailyCheckin({ initial, onSubmit, onCancel, sty
             </View>
           </View>
         );
+      }
     }
     return <View />;
   }
@@ -570,18 +568,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#fffdf8',
   },
   multiline: { minHeight: 96, textAlignVertical: 'top' },
-  pickerField: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#E4BB90',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: '#fffdf8',
-  },
-  pickerValue: { color: '#4A2A16', fontSize: 16, fontFamily: 'Inter-SemiBold' },
   preview: {
     padding: 16,
     borderRadius: 18,
@@ -641,30 +627,4 @@ const styles = StyleSheet.create({
   modeBtnActive: { backgroundColor: '#F7C99E', borderColor: '#E08C55' },
   modeBtnLabel: { color: '#8A5D3E', fontWeight: '600', fontFamily: 'Inter-SemiBold' },
   modeBtnLabelActive: { color: '#4A2A16', fontFamily: 'Inter-SemiBold' },
-  chip: {
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#E4BB90',
-    backgroundColor: 'rgba(253,241,226,0.7)',
-  },
-  chipActive: { backgroundColor: '#F9D7B4', borderColor: '#E08C55' },
-  chipLabel: { color: '#8A5D3E', fontFamily: 'Inter-Regular' },
-  chipLabelActive: { color: '#4A2A16', fontWeight: '700', fontFamily: 'Inter-SemiBold' },
-  timeModalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  timeModalCard: {
-    width: '100%',
-    borderRadius: 20,
-    backgroundColor: '#fffdf8',
-    padding: 20,
-  },
-  timeModalTitle: { fontSize: 18, fontWeight: '700', color: '#4A2A16', marginBottom: 12 },
-  timeModalActions: { flexDirection: 'row', gap: 12, marginTop: 12 },
 });

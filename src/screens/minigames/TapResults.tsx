@@ -9,6 +9,7 @@ import { HEADER_TOTAL_HEIGHT } from '../../components/AppHeader';
 import { useApp } from '../../store/app';
 import { TASK_XP } from '../../lib/tasks';
 import { useHeaderTransparency } from '../../hooks/useHeaderTransparency';
+import { useUiStore } from '../../store/ui';
 
 type Props = NativeStackScreenProps<MinigameStackParamList, 'TapResults'>;
 
@@ -50,6 +51,7 @@ const formatMs = (value: number | null) =>
 
 export default function TapResults({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
+  const headerAccessoryHeight = useUiStore((s) => s.headerAccessoryHeight);
   useHeaderTransparency();
   const { times, hits, misses, attempts, round } = route.params;
   const confettiRef = useRef<ConfettiCannon | null>(null);
@@ -105,7 +107,7 @@ export default function TapResults({ navigation, route }: Props) {
     <View
       style={[
         styles.screen,
-        { paddingTop: 28 + insets.top + HEADER_TOTAL_HEIGHT },
+        { paddingTop: 28 + insets.top + HEADER_TOTAL_HEIGHT + headerAccessoryHeight },
       ]}
     >
       <ConfettiCannon

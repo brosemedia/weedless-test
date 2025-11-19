@@ -185,6 +185,15 @@ export const DEFAULT_MILESTONES: Milestone[] = [
     threshold: 5000,
     icon: 'moneyLegacy',
   },
+  {
+    id: 'pause-achieved',
+    title: 'Pause erreicht',
+    description: 'Eine geplante Konsumpause komplett durchgezogen.',
+    points: 80,
+    kind: 'pause',
+    threshold: 1,
+    icon: 'streakForest',
+  },
 ];
 
 const defaultIds = new Set(DEFAULT_MILESTONES.map((m) => m.id));

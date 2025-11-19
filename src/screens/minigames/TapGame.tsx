@@ -15,6 +15,7 @@ import type { MinigameStackParamList } from './MinigamesHub';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HEADER_TOTAL_HEIGHT } from '../../components/AppHeader';
 import { useHeaderTransparency } from '../../hooks/useHeaderTransparency';
+import { useUiStore } from '../../store/ui';
 
 type Props = NativeStackScreenProps<MinigameStackParamList, 'TapGame'>;
 
@@ -58,6 +59,7 @@ const perfNow = () =>
 
 export default function TapGame({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const headerAccessoryHeight = useUiStore((s) => s.headerAccessoryHeight);
   useHeaderTransparency();
   const [phase, setPhase] = useState<Phase>('idle');
   const [metrics, setMetrics] = useState<Metrics>(initialMetrics);
@@ -328,7 +330,7 @@ export default function TapGame({ navigation }: Props) {
     <View
       style={[
         styles.screen,
-        { paddingTop: 24 + insets.top + HEADER_TOTAL_HEIGHT },
+        { paddingTop: 24 + insets.top + HEADER_TOTAL_HEIGHT + headerAccessoryHeight },
       ]}
     >
       <View style={styles.header}>

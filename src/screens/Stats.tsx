@@ -7,12 +7,14 @@ import { ThemedView, ThemedText, SectionHeader, Card, ProgressBar } from '../des
 import { spacing } from '../design/tokens';
 import { HEADER_TOTAL_HEIGHT } from '../components/AppHeader';
 import { useHeaderTransparency } from '../hooks/useHeaderTransparency';
+import { useUiStore } from '../store/ui';
 
 export default function Stats() {
   const profile = useStore((s) => s.profile);
   const diary = useStore((s) => s.diary);
   const [range, setRange] = useState<'7' | '30' | 'all'>('7');
   const insets = useSafeAreaInsets();
+  const headerAccessoryHeight = useUiStore((s) => s.headerAccessoryHeight);
   useHeaderTransparency();
 
   const data = range === '7'
@@ -30,7 +32,7 @@ export default function Stats() {
       <View
         style={{
           paddingHorizontal: spacing.xl as any,
-          paddingTop: insets.top + HEADER_TOTAL_HEIGHT,
+          paddingTop: insets.top + HEADER_TOTAL_HEIGHT + headerAccessoryHeight,
           paddingBottom: Math.max(spacing.l as any, insets.bottom),
           gap: spacing.m as any,
         }}

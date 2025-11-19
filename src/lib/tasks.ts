@@ -7,3 +7,5 @@ export const TASK_XP: Record<string, number> = {
 };
 
 export const GRAMS_PER_JOINT_DEFAULT = 0.25;
+
+export const PAUSE_DAILY_XP_BONUS = 35;

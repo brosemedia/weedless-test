@@ -8,6 +8,7 @@ import { HEADER_TOTAL_HEIGHT } from '../components/AppHeader';
 import { Article, ARTICLES } from '../content/articles';
 import { useQuickActionsVisibility } from '../hooks/useQuickActionsVisibility';
 import { useHeaderTransparency } from '../hooks/useHeaderTransparency';
+import { useUiStore } from '../store/ui';
 type TagTheme = {
   badgeBackground: string;
   badgeText: string;
@@ -286,6 +287,7 @@ function ArticleOverlay({
 
 export default function KnowledgeScreen() {
   const insets = useSafeAreaInsets();
+  const headerAccessoryHeight = useUiStore((s) => s.headerAccessoryHeight);
   const { handleScroll } = useHeaderTransparency();
   const [activeArticleIndex, setActiveArticleIndex] = useState<number | null>(null);
   const hasActiveArticle = activeArticleIndex !== null;
@@ -318,7 +320,7 @@ export default function KnowledgeScreen() {
         contentContainerStyle={[
           styles.container,
           {
-            paddingTop: insets.top + HEADER_TOTAL_HEIGHT + spacing.l,
+            paddingTop: insets.top + HEADER_TOTAL_HEIGHT + headerAccessoryHeight + spacing.l,
             paddingBottom: Math.max(spacing.xl, insets.bottom + spacing.m),
           },
         ]}

@@ -10,6 +10,21 @@ export type Profile = {
   version: number; // schema version
 };
 
+export type PaidByUser = 'yes' | 'no' | 'unknown';
+
+export type ConsumptionMethod = 'joint' | 'vape' | 'bong' | 'edible' | 'other';
+
+export type ConsumptionEntry = {
+  id: string;
+  createdAt: number;
+  grams?: number;
+  joints?: number;
+  sessionMinutes?: number;
+  method?: ConsumptionMethod;
+  paidByUser: PaidByUser;
+  amountSpent?: number;
+};
+
 export type DayCheckin = {
   usedToday: boolean;
   amountGrams: number;
@@ -24,6 +39,7 @@ export type DayLog = {
   date: string; // YYYY-MM-DD
   consumedGrams?: number;
   consumedJoints?: number;
+  consumptionEntries?: ConsumptionEntry[];
   /** Summe der für Cannabis ausgegebenen Euros an diesem Tag */
   moneySpentEUR?: number;
   /** Tatsächlich konsumierte Sitzungsminuten dieses Tages */

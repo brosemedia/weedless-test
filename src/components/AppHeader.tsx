@@ -6,7 +6,6 @@ import {
   Animated,
   Linking,
   Text,
-  Image,
   useWindowDimensions,
   Easing,
   Platform,
@@ -17,6 +16,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { colors, spacing } from '../design/tokens';
 import { useUiStore } from '../store/ui';
+import PauseHeaderBadge from './PauseHeaderBadge';
 
 export const HEADER_BAR_HEIGHT = 40;
 export const HEADER_CLEARANCE = 6;
@@ -27,8 +27,6 @@ type Props = {
   navRef: NavigationContainerRefWithCurrent<any>;
   title: string;
 };
-
-const APP_LOGO = require('../../assets/weedless_logo_trimmed.png');
 
 export default function AppHeader({ navRef, title }: Props) {
   const insets = useSafeAreaInsets();
@@ -126,6 +124,12 @@ export default function AppHeader({ navRef, title }: Props) {
     });
   };
 
+  const goToPauseHistory = () => {
+    closeMenu(() => {
+      navRef.current?.navigate('PauseHistory');
+    });
+  };
+
   const goToZenGlide = () => {
     closeMenu(() => {
       navRef.current?.navigate('ZenGlide');
@@ -157,8 +161,9 @@ export default function AppHeader({ navRef, title }: Props) {
           {
             height: barHeight,
             paddingTop,
-            paddingLeft: insets.left + spacing.s,
+            paddingLeft: insets.left + spacing.l,
             paddingRight: spacing.xl + insets.right,
+            gap: spacing.s,
           },
         ]}
       >
@@ -183,14 +188,12 @@ export default function AppHeader({ navRef, title }: Props) {
             },
           ]}
         />
-        <View style={styles.logoWrap}>
-          <Image source={APP_LOGO} style={styles.logo} resizeMode="contain" />
-        </View>
         <View style={styles.titleWrap}>
           <Text style={styles.title} numberOfLines={1}>
             {title}
           </Text>
         </View>
+        <PauseHeaderBadge navRef={navRef} />
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Menü öffnen"
@@ -260,6 +263,13 @@ export default function AppHeader({ navRef, title }: Props) {
               </Pressable>
             </View>
             <View style={styles.drawerList}>
+              <Pressable style={({ pressed }) => [styles.drawerItem, pressed && styles.drawerItemPressed]} onPress={goToPauseHistory}>
+                <View style={styles.drawerItemContent}>
+                  <MaterialCommunityIcons name="pause-circle-outline" size={22} color={colors.light.primary} />
+                  <Text style={styles.drawerItemText}>Pausen</Text>
+                </View>
+              </Pressable>
+              <View style={styles.separator} />
               <Pressable style={({ pressed }) => [styles.drawerItem, pressed && styles.drawerItemPressed]} onPress={goToSettings}>
                 <View style={styles.drawerItemContent}>
                   <MaterialCommunityIcons name="cog-outline" size={22} color={colors.light.primary} />
@@ -320,16 +330,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     height: StyleSheet.hairlineWidth,
     backgroundColor: colors.light.border,
-  },
-  logoWrap: {
-    height: HEADER_BAR_HEIGHT,
-    alignItems: 'flex-start',
-    justifyContent: 'center',
-    marginRight: spacing.s,
-  },
-  logo: {
-    width: HEADER_BAR_HEIGHT - 6,
-    height: HEADER_BAR_HEIGHT - 6,
   },
   titleWrap: {
     flex: 1,

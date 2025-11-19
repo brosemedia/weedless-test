@@ -27,11 +27,15 @@ import CheckForm, { type DailyCheckinData } from '../components/MultiStepDailyCh
 import { useApp } from '../store/app';
 import { useQuickActionsVisibility } from '../hooks/useQuickActionsVisibility';
 import { useHeaderTransparency } from '../hooks/useHeaderTransparency';
+import { usePauseEngine } from '../hooks/usePauseEngine';
 import { TASK_XP } from '../lib/tasks';
 import StroopGame from '../games/stroop/StroopGame';
 import { getLastStroopSummary, type SessionSummary } from '../games/stroop/storage';
 import type { DayLog } from '../types/profile';
 import { FrostedSurface } from '../design/FrostedSurface';
+import { dayKeysBetween, parseDateKey } from '../lib/pause';
+import { createConsumptionEntry } from '../lib/consumption';
+import { useUiStore } from '../store/ui';
 
 type TaskId = 'reaction-test' | 'stroop-focus' | 'breathing-session' | 'zen-glide' | 'daily-check-in';
 
@@ -357,9 +361,10 @@ type CalendarOverviewModalProps = {
   onClose: () => void;
   onSelectDate: (day: Date) => void;
   dayLogs: Record<string, DayLog>;
+  pauseMap?: Record<string, 'active' | 'past'>;
 };
 
-function CalendarOverviewModal({ visible, onClose, onSelectDate, dayLogs }: CalendarOverviewModalProps) {
+function CalendarOverviewModal({ visible, onClose, onSelectDate, dayLogs, pauseMap }: CalendarOverviewModalProps) {
   useQuickActionsVisibility('tracken-calendar', visible);
   const insets = useSafeAreaInsets();
   const [calendarAnchor, setCalendarAnchor] = useState(() => new Date());
@@ -479,6 +484,7 @@ function CalendarOverviewModal({ visible, onClose, onSelectDate, dayLogs }: Cale
                     const isSelected = isSameDay(day, focusedDate);
                     const isCurrentMonth = isSameMonth(day, monthStart);
                     const isToday = isSameDay(day, today);
+                    const pauseState = pauseMap?.[key];
                     return (
                       <Pressable
                         key={day.toISOString()}
@@ -488,6 +494,8 @@ function CalendarOverviewModal({ visible, onClose, onSelectDate, dayLogs }: Cale
                         style={({ pressed }) => [
                           styles.calendarMonthDay,
                           !isCurrentMonth && styles.calendarMonthDayMuted,
+                          pauseState === 'past' && styles.calendarPauseRange,
+                          pauseState === 'active' && styles.calendarPauseRangeActive,
                           isSelected && styles.calendarMonthDaySelected,
                           isToday && styles.calendarMonthDayToday,
                           pressed && styles.calendarMonthDayPressed,
@@ -610,13 +618,16 @@ function ActivitiesModal({ visible, onClose, date, entries }: ActivitiesModalPro
 
 export default function TrackenScreen() {
   const insets = useSafeAreaInsets();
+  const headerAccessoryHeight = useUiStore((s) => s.headerAccessoryHeight);
   const navigation = useNavigation<any>();
   const isFocused = useIsFocused();
   useQuickActionsVisibility('tracken-screen', isFocused);
+  usePauseEngine();
   const { handleScroll } = useHeaderTransparency();
   const dayLogs = useApp((s) => s.dayLogs);
   const upsertDayLog = useApp((s) => s.upsertDayLog);
   const markTaskDone = useApp((s) => s.markTaskDone);
+  const pauses = useApp((s) => s.pauses);
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [showCheck, setShowCheck] = useState(false);
@@ -636,6 +647,19 @@ export default function TrackenScreen() {
   const logForSelected = dayLogs[selectedKey];
   const completedIds = new Set(logForSelected?.tasksDone ?? []);
   const todayXp = logForSelected?.xpEarned ?? 0;
+  const pauseHighlightMap = useMemo(() => {
+    const map: Record<string, 'active' | 'past'> = {};
+    pauses.forEach((pause) => {
+      const type = pause.status === 'aktiv' ? 'active' : 'past';
+      dayKeysBetween(pause.startDate, pause.endDate).forEach((key) => {
+        if (!map[key] || type === 'active') {
+          map[key] = type;
+        }
+      });
+    });
+    return map;
+  }, [pauses]);
+  const activePause = pauses.find((pause) => pause.status === 'aktiv');
 
   const tasks = TASKS.map((task) => ({
     ...task,
@@ -692,9 +716,9 @@ export default function TrackenScreen() {
     const consumed = data.usedToday ? Math.max(0, data.amountGrams) : 0;
     const lastConsumptionTimestamp =
       data.usedToday ? timestampFromKey(selectedKey, data.uses?.[0]?.time) : undefined;
-    upsertDayLog({
+    const existing = dayLogs[selectedKey];
+    const updates: Partial<DayLog> & { date: string } = {
       date: selectedKey,
-      consumedGrams: consumed > 0 ? consumed : undefined,
       notes: data.notes,
       checkin: {
         usedToday: data.usedToday,
@@ -705,6 +729,40 @@ export default function TrackenScreen() {
         notes: data.notes,
         recordedAt: Date.now(),
       },
+    };
+    if (consumed > 0) {
+      const entry = createConsumptionEntry({
+        grams: consumed,
+        joints: data.consumptionJoints,
+        sessionMinutes: data.consumptionSessionMinutes,
+        method: data.consumptionMethod,
+        paidByUser: data.consumptionPaidByUser ?? 'unknown',
+        amountSpent: data.consumptionAmountSpentEUR,
+      });
+      const nextEntries = [...(existing?.consumptionEntries ?? []), entry];
+      const totalGrams = (existing?.consumedGrams ?? 0) + (entry.grams ?? consumed);
+      const totalJoints = (existing?.consumedJoints ?? 0) + (entry.joints ?? 0);
+      const totalMinutes = (existing?.sessionMinutes ?? 0) + (entry.sessionMinutes ?? 0);
+      const moneySpent =
+        entry.paidByUser === 'yes' && entry.amountSpent
+          ? (existing?.moneySpentEUR ?? 0) + entry.amountSpent
+          : existing?.moneySpentEUR;
+      updates.consumedGrams = totalGrams;
+      if (totalJoints > 0) {
+        updates.consumedJoints = totalJoints;
+      }
+      if (totalMinutes > 0) {
+        updates.sessionMinutes = totalMinutes;
+      }
+      if (typeof moneySpent === 'number') {
+        updates.moneySpentEUR = moneySpent;
+      }
+      updates.consumptionEntries = nextEntries;
+    } else if (existing?.consumedGrams) {
+      updates.consumedGrams = existing.consumedGrams;
+    }
+    upsertDayLog({
+      ...updates,
       lastConsumptionAt: lastConsumptionTimestamp,
     });
     markTaskDone(selectedKey, 'daily-check-in', TASK_XP['daily-check-in'] ?? 0);
@@ -737,7 +795,16 @@ export default function TrackenScreen() {
     }
   };
 
-  const topOffset = insets.top + HEADER_TOTAL_HEIGHT + (sp.l as number);
+  const openPausePlanner = () => {
+    const parent = navigation.getParent()?.getParent() ?? navigation.getParent() ?? navigation;
+    parent.navigate('PausePlan');
+  };
+
+  const pauseSubtitle = activePause
+    ? `Aktiv bis ${format(parseDateKey(activePause.endDate), 'dd.MM.yyyy', { locale: de })}`
+    : 'Plane eine Konsumpause in wenigen Sekunden';
+
+  const topOffset = insets.top + HEADER_TOTAL_HEIGHT + headerAccessoryHeight + (sp.l as number);
 
   return (
     <>
@@ -804,6 +871,22 @@ export default function TrackenScreen() {
           <Text style={styles.checkinCtaSubtitle}>Direkt zur ersten Frage springen</Text>
         </View>
         <Ionicons name="arrow-forward-circle" size={30} color="#ffffff" />
+      </Pressable>
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Pause einlegen"
+        onPress={openPausePlanner}
+        style={({ pressed }) => [styles.pauseCta, pressed && styles.pauseCtaPressed]}
+      >
+        <View style={styles.pauseCtaIcon}>
+          <Ionicons name="pause-circle" size={24} color={colors.light.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.pauseCtaTitle}>Pause einlegen</Text>
+          <Text style={styles.pauseCtaSubtitle}>{pauseSubtitle}</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={22} color={colors.light.primary} />
       </Pressable>
 
       <View style={styles.sectionHeaderRow}>
@@ -902,6 +985,7 @@ export default function TrackenScreen() {
         onClose={closeCalendarModal}
         onSelectDate={handleSelectDay}
         dayLogs={dayLogs}
+        pauseMap={pauseHighlightMap}
       />
       {statusMessage ? (
         <View
@@ -1020,6 +1104,38 @@ const styles = StyleSheet.create({
   },
   checkinCtaSubtitle: {
     color: 'rgba(255,255,255,0.92)',
+    fontSize: 13,
+    marginTop: 2,
+  },
+  pauseCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sp.m,
+    backgroundColor: lt.surface,
+    borderRadius: radius.xl,
+    paddingHorizontal: sp.l,
+    paddingVertical: sp.m,
+    borderWidth: 1,
+    borderColor: 'rgba(16,104,74,0.2)',
+  },
+  pauseCtaPressed: {
+    opacity: 0.9,
+  },
+  pauseCtaIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(16,104,74,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pauseCtaTitle: {
+    color: lt.text,
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  pauseCtaSubtitle: {
+    color: lt.textMuted,
     fontSize: 13,
     marginTop: 2,
   },
@@ -1370,6 +1486,14 @@ const styles = StyleSheet.create({
   },
   calendarMonthDayPressed: {
     opacity: 0.9,
+  },
+  calendarPauseRange: {
+    backgroundColor: 'rgba(16,104,74,0.12)',
+  },
+  calendarPauseRangeActive: {
+    backgroundColor: 'rgba(16,104,74,0.18)',
+    borderColor: 'rgba(16,104,74,0.6)',
+    borderWidth: 2,
   },
   calendarMonthDayMuted: {
     backgroundColor: 'rgba(0,0,0,0.03)',

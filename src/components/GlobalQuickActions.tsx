@@ -12,27 +12,33 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import type { NavigationContainerRefWithCurrent } from '@react-navigation/native';
 import { colors, radius, spacing, shadows } from '../design/tokens';
 import { useApp } from '../store/app';
 import { useUiStore } from '../store/ui';
 import type { DayLog } from '../types/profile';
 import MultiStepDailyCheckin, { type DailyCheckinData } from './MultiStepDailyCheckin';
-import { GRAMS_PER_JOINT_DEFAULT, TASK_XP } from '../lib/tasks';
+import { TASK_XP } from '../lib/tasks';
+import ConsumptionFormFields from './ConsumptionFormFields';
+import {
+  createConsumptionEntry,
+  createEmptyConsumptionForm,
+  deriveDefaultAmountSpent,
+  gramsPerJointFromProfile,
+  normalizeConsumptionForm,
+  parseNumberInput,
+  type ConsumptionFormValues,
+} from '../lib/consumption';
 
-type ActionKey = 'consumption' | 'purchase' | 'checkin';
+type ActionKey = 'consumption' | 'purchase' | 'checkin' | 'pause';
+type SheetFormKey = Exclude<ActionKey, 'pause'>;
 
 const ACTIONS: { key: ActionKey; label: string; description: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { key: 'consumption', label: 'Konsum hinzufügen', description: 'Session schnell erfassen', icon: 'leaf-outline' },
   { key: 'purchase', label: 'Einkauf protokollieren', description: 'Ausgaben festhalten', icon: 'cart-outline' },
   { key: 'checkin', label: 'Check-in starten', description: 'Gefühl & Konsum tracken', icon: 'calendar-outline' },
+  { key: 'pause', label: 'Pause einlegen', description: 'Auszeit planen & tracken', icon: 'pause-outline' },
 ];
-
-const parseNumberInput = (raw: string) => {
-  if (!raw?.trim()) return NaN;
-  const normalized = raw.replace(',', '.');
-  const value = Number(normalized);
-  return Number.isFinite(value) ? value : NaN;
-};
 
 const todayKey = () => new Date().toISOString().slice(0, 10);
 
@@ -203,20 +209,17 @@ function ActionSheet({ visible, bottomInset, onClose, onSelect }: SheetProps) {
 type ConsumptionModalProps = {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (grams: string, joints: string, minutes: string) => string | null;
+  onSubmit: (form: ConsumptionFormValues) => string | null;
+  suggestedAmount?: number | null;
 };
 
-function ConsumptionModal({ visible, onClose, onSubmit }: ConsumptionModalProps) {
-  const [grams, setGrams] = useState('');
-  const [joints, setJoints] = useState('');
-  const [minutes, setMinutes] = useState('');
+function ConsumptionModal({ visible, onClose, onSubmit, suggestedAmount }: ConsumptionModalProps) {
+  const [form, setForm] = useState<ConsumptionFormValues>(() => createEmptyConsumptionForm());
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!visible) {
-      setGrams('');
-      setJoints('');
-      setMinutes('');
+      setForm(createEmptyConsumptionForm());
       setError(null);
     }
   }, [visible]);
@@ -224,7 +227,7 @@ function ConsumptionModal({ visible, onClose, onSubmit }: ConsumptionModalProps)
   if (!visible) return null;
 
   const handleSubmit = () => {
-    const maybeError = onSubmit(grams, joints, minutes);
+    const maybeError = onSubmit(form);
     if (maybeError) {
       setError(maybeError);
     }
@@ -239,32 +242,18 @@ function ConsumptionModal({ visible, onClose, onSubmit }: ConsumptionModalProps)
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <ScrollView contentContainerStyle={{ padding: spacing.l, gap: spacing.l }}>
-            <Field
-              label="Menge in Gramm"
-              value={grams}
-              onChangeText={(text) => {
-                setGrams(text);
-                if (text) setJoints('');
-              }}
-              placeholder="z. B. 0.5"
-            />
-            <Field
-              label="oder Anzahl Joints"
-              value={joints}
-              onChangeText={(text) => {
-                setJoints(text);
-                if (text) setGrams('');
-              }}
-              placeholder="z. B. 1"
-            />
-            <Field
-              label="Session-Dauer (Minuten)"
-              value={minutes}
-              onChangeText={setMinutes}
-              placeholder="optional"
+            <ConsumptionFormFields
+              value={form}
+              suggestedAmount={suggestedAmount}
+              onChange={(patch) =>
+                setForm((prev) => ({
+                  ...prev,
+                  ...patch,
+                }))
+              }
             />
             <Text style={{ fontSize: 13, color: colors.light.textMuted }}>
-              Die Angaben beeinflussen Geld gespart, Gramm/Joints vermieden und Zeit zurückgewonnen im Dashboard.
+              Die Angaben wirken sich auf „Geld gespart“, Konsumstatistiken und deine Fortschrittskarten aus.
             </Text>
             {error ? (
               <Text style={{ color: colors.light.danger, fontWeight: '600' }}>{error}</Text>
@@ -281,7 +270,9 @@ function ConsumptionModal({ visible, onClose, onSubmit }: ConsumptionModalProps)
                 pressed && { opacity: 0.9 },
               ]}
             >
-              <Text style={{ color: colors.light.surface, fontSize: 16, fontWeight: '700' }}>Speichern</Text>
+              <Text style={{ color: colors.light.surface, fontSize: 16, fontWeight: '700' }}>
+                Konsum speichern
+              </Text>
             </Pressable>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -382,27 +373,27 @@ function CheckinModal({ visible, onClose, onSubmit }: CheckinModalProps) {
   );
 }
 
-export default function GlobalQuickActions() {
+type GlobalQuickActionsProps = {
+  navRef?: NavigationContainerRefWithCurrent<any>;
+};
+
+export default function GlobalQuickActions({ navRef }: GlobalQuickActionsProps) {
   const insets = useSafeAreaInsets();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [activeForm, setActiveForm] = useState<ActionKey | null>(null);
+  const [activeForm, setActiveForm] = useState<SheetFormKey | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const profile = useApp((s) => s.profile);
   const dayLogs = useApp((s) => s.dayLogs);
+  const hasActivePause = useApp((s) => s.pauses.some((pause) => pause.status === 'aktiv'));
   const upsertDayLog = useApp((s) => s.upsertDayLog);
   const markTaskDone = useApp((s) => s.markTaskDone);
   const quickActionsHidden = useUiStore((s) => s.quickActionsHiddenKeys.length > 0);
 
-  const gramsPerJoint = useMemo(() => {
-    if (!profile) return GRAMS_PER_JOINT_DEFAULT;
-    if (profile.gramsPerDayBaseline && profile.jointsPerDayBaseline) {
-      const ratio = profile.gramsPerDayBaseline / Math.max(1, profile.jointsPerDayBaseline);
-      if (Number.isFinite(ratio) && ratio > 0) {
-        return ratio;
-      }
-    }
-    return GRAMS_PER_JOINT_DEFAULT;
-  }, [profile]);
+  const gramsPerJoint = useMemo(() => gramsPerJointFromProfile(profile), [profile]);
+  const defaultAmountSuggestion = useMemo(
+    () => deriveDefaultAmountSpent(dayLogs, profile),
+    [dayLogs, profile]
+  );
 
   useEffect(() => {
     if (!statusMessage) return;
@@ -420,37 +411,45 @@ export default function GlobalQuickActions() {
 
   const closeForm = () => setActiveForm(null);
 
-  const submitConsumption = (gramsInput: string, jointsInput: string, minutesInput: string) => {
-    const gramsValue = parseNumberInput(gramsInput);
-    const jointsValue = parseNumberInput(jointsInput);
-    const minutesValue = parseNumberInput(minutesInput);
-    const hasGrams = Number.isFinite(gramsValue) && gramsValue > 0;
-    const hasJoints = Number.isFinite(jointsValue) && jointsValue > 0;
-    if (!hasGrams && !hasJoints) {
+  const submitConsumption = (form: ConsumptionFormValues) => {
+    const normalized = normalizeConsumptionForm(form, gramsPerJoint);
+    if (normalized.grams <= 0) {
       return 'Bitte Menge in Gramm oder Joints angeben.';
     }
-    const finalGrams = hasGrams ? gramsValue : jointsValue * gramsPerJoint;
-    const finalJoints = hasJoints
-      ? jointsValue
-      : gramsPerJoint > 0
-      ? finalGrams / gramsPerJoint
-      : undefined;
-    const sessionMinutes = Number.isFinite(minutesValue) && minutesValue > 0 ? minutesValue : 0;
+    if (form.paidByUser === 'yes' && !normalized.amountSpent) {
+      return 'Bitte Betrag größer 0 € eingeben.';
+    }
+    const entry = createConsumptionEntry(normalized);
     const key = todayKey();
     const existing = dayLogs[key];
-    const next: Partial<DayLog> & { date: string } = {
+    const totalGrams = (existing?.consumedGrams ?? 0) + (entry.grams ?? normalized.grams);
+    const totalJoints = (existing?.consumedJoints ?? 0) + (entry.joints ?? 0);
+    const totalMinutes = (existing?.sessionMinutes ?? 0) + (entry.sessionMinutes ?? 0);
+    const costDelta =
+      entry.paidByUser === 'yes' && entry.amountSpent ? entry.amountSpent : 0;
+    const totalCost =
+      costDelta > 0 ? (existing?.moneySpentEUR ?? 0) + costDelta : existing?.moneySpentEUR;
+    const nextEntries = [...(existing?.consumptionEntries ?? []), entry];
+    const nextLog: Partial<DayLog> & { date: string } = {
       date: key,
-      consumedGrams: (existing?.consumedGrams ?? 0) + (finalGrams || 0),
+      consumedGrams: totalGrams,
+      consumptionEntries: nextEntries,
     };
-    if (typeof finalJoints === 'number' && Number.isFinite(finalJoints)) {
-      next.consumedJoints = (existing?.consumedJoints ?? 0) + finalJoints;
+    if (totalJoints > 0) {
+      nextLog.consumedJoints = totalJoints;
     }
-    if (sessionMinutes > 0) {
-      next.sessionMinutes = (existing?.sessionMinutes ?? 0) + sessionMinutes;
+    if (totalMinutes > 0) {
+      nextLog.sessionMinutes = totalMinutes;
     }
-    upsertDayLog({ ...next, lastConsumptionAt: Date.now() });
+    if (typeof totalCost === 'number') {
+      nextLog.moneySpentEUR = totalCost;
+    }
+    upsertDayLog({
+      ...nextLog,
+      lastConsumptionAt: Date.now(),
+    });
     setActiveForm(null);
-    setStatusMessage('Konsum gespeichert');
+    setStatusMessage(hasActivePause ? 'Pause beendet – Konsum gespeichert' : 'Konsum gespeichert');
     return null;
   };
 
@@ -473,18 +472,46 @@ export default function GlobalQuickActions() {
   const submitCheckin = (data: DailyCheckinData) => {
     const key = data.dateISO.slice(0, 10);
     const consumed = data.usedToday ? Math.max(0, data.amountGrams) : 0;
-    const next: Partial<DayLog> & { date: string } = {
+    const existing = dayLogs[key];
+    const updates: Partial<DayLog> & { date: string } = {
       date: key,
-      consumedGrams: consumed > 0 ? consumed : undefined,
       notes: data.notes,
     };
-    if (consumed > 0 && gramsPerJoint > 0) {
-      next.consumedJoints = consumed / gramsPerJoint;
+    if (consumed > 0) {
+      const entry = createConsumptionEntry({
+        grams: consumed,
+        joints: data.consumptionJoints,
+        sessionMinutes: data.consumptionSessionMinutes,
+        method: data.consumptionMethod,
+        paidByUser: data.consumptionPaidByUser ?? 'unknown',
+        amountSpent: data.consumptionAmountSpentEUR,
+      });
+      const nextEntries = [...(existing?.consumptionEntries ?? []), entry];
+      const totalGrams = (existing?.consumedGrams ?? 0) + (entry.grams ?? consumed);
+      const totalJoints = (existing?.consumedJoints ?? 0) + (entry.joints ?? 0);
+      const totalMinutes = (existing?.sessionMinutes ?? 0) + (entry.sessionMinutes ?? 0);
+      const moneySpent =
+        entry.paidByUser === 'yes' && entry.amountSpent
+          ? (existing?.moneySpentEUR ?? 0) + entry.amountSpent
+          : existing?.moneySpentEUR;
+      updates.consumedGrams = totalGrams;
+      if (totalJoints > 0) {
+        updates.consumedJoints = totalJoints;
+      }
+      if (totalMinutes > 0) {
+        updates.sessionMinutes = totalMinutes;
+      }
+      if (typeof moneySpent === 'number') {
+        updates.moneySpentEUR = moneySpent;
+      }
+      updates.consumptionEntries = nextEntries;
+    } else if (existing?.consumedGrams) {
+      updates.consumedGrams = existing.consumedGrams;
     }
     const lastConsumptionTimestamp =
       data.usedToday ? timestampFromDateKey(key, data.uses?.[0]?.time) : undefined;
     upsertDayLog({
-      ...next,
+      ...updates,
       lastConsumptionAt: lastConsumptionTimestamp,
     });
     markTaskDone(key, 'daily-check-in', TASK_XP['daily-check-in'] ?? 0);
@@ -547,6 +574,10 @@ export default function GlobalQuickActions() {
         onClose={() => setMenuOpen(false)}
         onSelect={(key) => {
           setMenuOpen(false);
+          if (key === 'pause') {
+            navRef?.current?.navigate('PausePlan');
+            return;
+          }
           setActiveForm(key);
         }}
       />
@@ -554,6 +585,7 @@ export default function GlobalQuickActions() {
         visible={activeForm === 'consumption'}
         onClose={closeForm}
         onSubmit={submitConsumption}
+        suggestedAmount={defaultAmountSuggestion}
       />
       <PurchaseModal
         visible={activeForm === 'purchase'}
