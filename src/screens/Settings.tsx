@@ -2,10 +2,13 @@ import React, { useState } from 'react';
 import { View, TextInput, Button, Alert, ScrollView, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '../store/useStore';
-import { ThemedView, ThemedText } from '../design/theme';
+import { ThemedView, ThemedText, useTheme } from '../design/theme';
 import { spacing } from '../design/tokens';
+import { HEADER_TOTAL_HEIGHT } from '../components/AppHeader';
+import { useHeaderTransparency } from '../hooks/useHeaderTransparency';
 
 export default function Settings() {
+  const theme = useTheme();
   const insets = useSafeAreaInsets();
   const profile = useStore((s) => s.profile);
   const setBaseline = useStore((s) => s.setBaseline);
@@ -38,33 +41,47 @@ export default function Settings() {
     Alert.alert('Gespeichert', 'Einstellungen wurden aktualisiert.');
   };
 
+  const { handleScroll } = useHeaderTransparency();
+
   return (
     <ThemedView style={{ flex: 1 }}>
       <ScrollView
         contentContainerStyle={{
           paddingHorizontal: spacing.l as any,
-          paddingTop: insets.top + (spacing.l as any),
+          paddingTop: insets.top + HEADER_TOTAL_HEIGHT + (spacing.l as any),
           paddingBottom: Math.max(spacing.l as any, insets.bottom),
           gap: spacing.m as any,
         }}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
       >
         <ThemedText kind="h1">Einstellungen</ThemedText>
 
-      <View style={{ backgroundColor: '#F5F7F2', borderRadius: 12, padding: 16 }}>
+      <View style={{ backgroundColor: theme.colors.surface, borderRadius: 12, padding: 16 }}>
         <ThemedText kind="h2" style={{ marginBottom: 8 }}>Baseline</ThemedText>
         <ThemedText>Einheit</ThemedText>
         <View style={{ flexDirection: 'row', gap: 8, marginVertical: 8 }}>
           <Pressable
             onPress={() => setUnit('g')}
-            style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: unit === 'g' ? '#4F7A1F' : '#E5E7EB' }}
+            style={{
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderRadius: 8,
+              backgroundColor: unit === 'g' ? theme.colors.primary : theme.colors.surfaceMuted,
+            }}
           >
-            <ThemedText style={{ color: unit === 'g' ? 'white' : '#111827' }}>g</ThemedText>
+            <ThemedText style={{ color: unit === 'g' ? '#FFF7EC' : theme.colors.text }}>g</ThemedText>
           </Pressable>
           <Pressable
             onPress={() => setUnit('joint')}
-            style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: unit === 'joint' ? '#4F7A1F' : '#E5E7EB' }}
+            style={{
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderRadius: 8,
+              backgroundColor: unit === 'joint' ? theme.colors.primary : theme.colors.surfaceMuted,
+            }}
           >
-            <ThemedText style={{ color: unit === 'joint' ? 'white' : '#111827' }}>joint</ThemedText>
+            <ThemedText style={{ color: unit === 'joint' ? '#FFF7EC' : theme.colors.text }}>joint</ThemedText>
           </Pressable>
         </View>
         <ThemedText>{`Baseline - Menge pro Tag (${profile.baseline.unit})`}</ThemedText>
@@ -72,14 +89,30 @@ export default function Settings() {
           value={amountPerDay}
           onChangeText={setAmountPerDay}
           keyboardType="decimal-pad"
-          style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, padding: 8 }}
+          style={{
+            borderWidth: 1,
+            borderColor: theme.colors.border,
+            borderRadius: 8,
+            padding: 8,
+            backgroundColor: theme.colors.surfaceMuted,
+            color: theme.colors.text,
+            fontFamily: theme.typography.variants.body.fontFamily,
+          }}
         />
         <ThemedText>{`Preis pro Einheit (pro ${profile.baseline.unit})`}</ThemedText>
         <TextInput
           value={pricePerUnit}
           onChangeText={setPricePerUnit}
           keyboardType="decimal-pad"
-          style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, padding: 8 }}
+          style={{
+            borderWidth: 1,
+            borderColor: theme.colors.border,
+            borderRadius: 8,
+            padding: 8,
+            backgroundColor: theme.colors.surfaceMuted,
+            color: theme.colors.text,
+            fontFamily: theme.typography.variants.body.fontFamily,
+          }}
         />
         <View style={{ height: 8 }} />
         <Button
@@ -97,32 +130,50 @@ export default function Settings() {
         />
       </View>
 
-      <View style={{ backgroundColor: '#F5F7F2', borderRadius: 12, padding: 16 }}>
+      <View style={{ backgroundColor: theme.colors.surface, borderRadius: 12, padding: 16 }}>
         <ThemedText kind="h2" style={{ marginBottom: 8 }}>Zielmodus</ThemedText>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <Pressable
             onPress={() => setGoalModeLocal('quit')}
-            style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: goalMode === 'quit' ? '#4F7A1F' : '#E5E7EB' }}
+            style={{
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderRadius: 8,
+              backgroundColor: goalMode === 'quit' ? theme.colors.primary : theme.colors.surfaceMuted,
+            }}
           >
-            <ThemedText style={{ color: goalMode === 'quit' ? 'white' : '#111827' }}>quit</ThemedText>
+            <ThemedText style={{ color: goalMode === 'quit' ? '#FFF7EC' : theme.colors.text }}>quit</ThemedText>
           </Pressable>
           <Pressable
             onPress={() => setGoalModeLocal('reduce')}
-            style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: goalMode === 'reduce' ? '#4F7A1F' : '#E5E7EB' }}
+            style={{
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderRadius: 8,
+              backgroundColor: goalMode === 'reduce' ? theme.colors.primary : theme.colors.surfaceMuted,
+            }}
           >
-            <ThemedText style={{ color: goalMode === 'reduce' ? 'white' : '#111827' }}>reduce</ThemedText>
+            <ThemedText style={{ color: goalMode === 'reduce' ? '#FFF7EC' : theme.colors.text }}>reduce</ThemedText>
           </Pressable>
         </View>
       </View>
 
-      <View style={{ backgroundColor: '#F5F7F2', borderRadius: 12, padding: 16 }}>
+      <View style={{ backgroundColor: theme.colors.surface, borderRadius: 12, padding: 16 }}>
         <ThemedText kind="h2" style={{ marginTop: 16 }}>Sparziel</ThemedText>
         <ThemedText>Titel</ThemedText>
         <TextInput
           value={goalTitle}
           onChangeText={setGoalTitle}
           placeholder="z. B. Brettspiel"
-          style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, padding: 8 }}
+          style={{
+            borderWidth: 1,
+            borderColor: theme.colors.border,
+            borderRadius: 8,
+            padding: 8,
+            backgroundColor: theme.colors.surfaceMuted,
+            color: theme.colors.text,
+            fontFamily: theme.typography.variants.body.fontFamily,
+          }}
         />
         <ThemedText>Betrag ()</ThemedText>
         <TextInput
@@ -130,7 +181,16 @@ export default function Settings() {
           onChangeText={setGoalAmount}
           keyboardType="decimal-pad"
           placeholder="z. B. 100"
-          style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, padding: 8, marginBottom: 8 }}
+          style={{
+            borderWidth: 1,
+            borderColor: theme.colors.border,
+            borderRadius: 8,
+            padding: 8,
+            marginBottom: 8,
+            backgroundColor: theme.colors.surfaceMuted,
+            color: theme.colors.text,
+            fontFamily: theme.typography.variants.body.fontFamily,
+          }}
         />
         <Button
           title="Sparziel speichern"
@@ -152,4 +212,3 @@ export default function Settings() {
     </ThemedView>
   );
 }
-

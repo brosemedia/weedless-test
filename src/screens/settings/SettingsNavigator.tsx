@@ -2,16 +2,16 @@ import React from 'react';
 import { Pressable, Text } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import SettingsHome from './SettingsHome';
-import ChangeSmokingData from './pages/ChangeSmokingData';
 import Notifications from './pages/Notifications';
 import Language from './pages/Language';
 import Philosophy from './pages/Philosophy';
 import ExportData from './pages/ExportData';
+import ProfileAndOnboarding from './pages/ProfileAndOnboarding';
 import { colors } from '../../design/tokens';
 
 export type SettingsStackParamList = {
   SettingsHome: undefined;
-  ChangeSmokingData: undefined;
+  ProfileAndOnboarding: undefined;
   Notifications: undefined;
   Language: undefined;
   Philosophy: undefined;
@@ -31,12 +31,16 @@ export default function SettingsNavigator() {
           presentation: 'modal',
           headerRight: () => (
             <Pressable onPress={() => navigation.goBack()} accessibilityRole="button">
-              <Text style={{ color: colors.light.primary, fontWeight: '700' }}>Fertig</Text>
+              <Text style={{ color: colors.light.primary, fontWeight: '700', fontFamily: 'Inter-SemiBold' }}>Fertig</Text>
             </Pressable>
           ),
         })}
       />
-      <Stack.Screen name="ChangeSmokingData" component={ChangeSmokingData} options={{ title: 'Die Rauchdaten ändern' }} />
+      <Stack.Screen
+        name="ProfileAndOnboarding"
+        component={ProfileAndOnboarding}
+        options={{ title: 'Profil & Onboarding' }}
+      />
       <Stack.Screen name="Notifications" component={Notifications} options={{ title: 'Benachrichtigungen' }} />
       <Stack.Screen name="Language" component={Language} options={{ title: 'Sprache' }} />
       <Stack.Screen name="Philosophy" component={Philosophy} options={{ title: 'Unsere Philosophie' }} />

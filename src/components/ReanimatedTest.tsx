@@ -19,7 +19,7 @@ export default function ReanimatedTest() {
 
   return (
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F7F8F5' }}>
-      <Animated.View style={[{ width: 100, height: 100, borderRadius: 16, backgroundColor: '#4F7A1F' }, aStyle]} />
+      <Animated.View style={[{ width: 100, height: 100, borderRadius: 16, backgroundColor: '#C86A3A' }, aStyle]} />
     </View>
   );
 }

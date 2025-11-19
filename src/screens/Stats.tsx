@@ -5,12 +5,15 @@ import { useStore } from '../store/useStore';
 import { aggregate } from '../lib/stats';
 import { ThemedView, ThemedText, SectionHeader, Card, ProgressBar } from '../design/theme';
 import { spacing } from '../design/tokens';
+import { HEADER_TOTAL_HEIGHT } from '../components/AppHeader';
+import { useHeaderTransparency } from '../hooks/useHeaderTransparency';
 
 export default function Stats() {
   const profile = useStore((s) => s.profile);
   const diary = useStore((s) => s.diary);
   const [range, setRange] = useState<'7' | '30' | 'all'>('7');
   const insets = useSafeAreaInsets();
+  useHeaderTransparency();
 
   const data = range === '7'
     ? aggregate(profile, diary, 7)
@@ -27,7 +30,7 @@ export default function Stats() {
       <View
         style={{
           paddingHorizontal: spacing.xl as any,
-          paddingTop: insets.top,
+          paddingTop: insets.top + HEADER_TOTAL_HEIGHT,
           paddingBottom: Math.max(spacing.l as any, insets.bottom),
           gap: spacing.m as any,
         }}

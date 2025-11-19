@@ -2,6 +2,18 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Profile, DiaryEntry, Baseline, SavingGoal, GoalMode } from '../types';
+import type { Milestone } from '../types/milestone';
+import {
+  DEFAULT_AVG_SESSION_MINUTES,
+  DEFAULT_CURRENCY,
+  DEFAULT_GRAMS_PER_JOINT,
+  DEFAULT_LOCALE,
+  DEFAULT_PRICE_PER_GRAM,
+  createInitialProfile,
+  mergeProfile,
+  normalizeProfile,
+  nowISO,
+} from './profileUtils';
 export type Checkin = import('../lib/scales').Checkin;
 
 export type Mission = {
@@ -14,17 +26,6 @@ export type Mission = {
   completedAt?: string;
 };
 
-export type Milestone = {
-  id: string;
-  title: string;
-  description?: string;
-  points: number;
-  icon?: string;
-  achievedAt?: string;
-  kind: 'streak' | 'count' | 'money';
-  threshold: number; // e.g., streak days or total check-ins
-};
-
 type Store = {
   profile: Profile;
   diary: DiaryEntry[];
@@ -32,10 +33,12 @@ type Store = {
   missions: Mission[];
   milestones: Milestone[];
   points: number;
+  taskCompletions: Record<string, string[]>;
 
   addEntry: (e: Omit<DiaryEntry, 'id'>) => void;
   removeEntry: (id: string) => void;
   setBaseline: (b: Partial<Baseline>) => void;
+  updateProfile: (patch: Partial<Profile>) => void;
   setGoalMode: (m: GoalMode) => void;
   setSavingGoal: (g?: SavingGoal) => void;
   clearAll: () => void;
@@ -45,15 +48,10 @@ type Store = {
   completeMission: (id: string) => void;
   setMilestones: (items: Milestone[]) => void;
   awardMilestone: (id: string) => void;
+  markTaskCompleted: (taskId: string, dateISO?: string) => void;
 };
 
-const initialProfile: Profile = {
-  startedAt: new Date().toISOString(),
-  goalMode: 'quit',
-  baseline: { unit: 'g', amountPerDay: 0.6, pricePerUnit: 10 },
-  savingGoal: undefined,
-  currency: 'EUR',
-};
+const initialProfile = createInitialProfile();
 
 export const useStore = create<Store>()(
   persist(
@@ -64,6 +62,7 @@ export const useStore = create<Store>()(
       missions: [],
       milestones: [],
       points: 0,
+      taskCompletions: {},
 
       addEntry: (e) =>
         set((s) => {
@@ -78,14 +77,27 @@ export const useStore = create<Store>()(
 
       setBaseline: (b) =>
         set((s) => ({
-          profile: { ...s.profile, baseline: { ...s.profile.baseline, ...b } as Baseline },
+          profile: mergeProfile(s.profile, {
+            baseline: { ...s.profile.baseline, ...b } as Baseline,
+          }),
         })),
 
-      setGoalMode: (m) => set((s) => ({ profile: { ...s.profile, goalMode: m } })),
+      updateProfile: (patch) =>
+        set((s) => ({
+          profile: mergeProfile(s.profile, patch),
+        })),
 
-      setSavingGoal: (g) => set((s) => ({ profile: { ...s.profile, savingGoal: g } })),
+      setGoalMode: (m) =>
+        set((s) => ({
+          profile: mergeProfile(s.profile, { goalMode: m }),
+        })),
 
-      clearAll: () => set({ profile: initialProfile, diary: [] }),
+      setSavingGoal: (g) =>
+        set((s) => ({
+          profile: mergeProfile(s.profile, { savingGoal: g }),
+        })),
+
+      clearAll: () => set({ profile: createInitialProfile(), diary: [] }),
 
       addCheckin: (c) =>
         set((s) => ({
@@ -117,11 +129,58 @@ export const useStore = create<Store>()(
           updated[idx] = { ...m, achievedAt: new Date().toISOString() };
           return { milestones: updated, points: s.points + (m.points || 0) };
         }),
+      markTaskCompleted: (taskId, dateISO) =>
+        set((s) => {
+          const source = dateISO ?? new Date().toISOString();
+          const key = source.length >= 10 ? source.slice(0, 10) : source;
+          const existing = s.taskCompletions[key] ?? [];
+          if (existing.includes(taskId)) return {} as any;
+          return {
+            taskCompletions: {
+              ...s.taskCompletions,
+              [key]: [...existing, taskId],
+            },
+          };
+        }),
     }),
     {
       name: 'weedless-store',
       storage: createJSONStorage(() => AsyncStorage),
-      version: 1,
+      version: 2,
+      migrate: (persistedState: any, version) => {
+        if (!persistedState) return persistedState;
+        if (version >= 2) {
+          return persistedState;
+        }
+        if (persistedState.profile) {
+          return {
+            ...persistedState,
+            profile: normalizeProfile({
+              ...persistedState.profile,
+              locale: persistedState.profile.locale ?? DEFAULT_LOCALE,
+              pauseStartISO: persistedState.profile.pauseStartISO ?? persistedState.profile.startedAt ?? nowISO(),
+              pricePerGram:
+                persistedState.profile.pricePerGram ??
+                (persistedState.profile.baseline?.unit === 'g'
+                  ? persistedState.profile.baseline.pricePerUnit
+                  : persistedState.profile.baseline.pricePerUnit / DEFAULT_GRAMS_PER_JOINT),
+              gramsPerDayBaseline:
+                persistedState.profile.gramsPerDayBaseline ??
+                (persistedState.profile.baseline?.unit === 'g'
+                  ? persistedState.profile.baseline.amountPerDay
+                  : persistedState.profile.baseline.amountPerDay * DEFAULT_GRAMS_PER_JOINT),
+              jointsPerDayBaseline:
+                persistedState.profile.jointsPerDayBaseline ??
+                (persistedState.profile.baseline?.unit === 'joint'
+                  ? persistedState.profile.baseline.amountPerDay
+                  : (persistedState.profile.baseline?.amountPerDay ?? 0) / DEFAULT_GRAMS_PER_JOINT),
+              gramsPerJoint: persistedState.profile.gramsPerJoint ?? DEFAULT_GRAMS_PER_JOINT,
+              avgSessionMinutes: persistedState.profile.avgSessionMinutes ?? DEFAULT_AVG_SESSION_MINUTES,
+            }),
+          };
+        }
+        return persistedState;
+      },
       partialize: (state) => ({
         profile: state.profile,
         diary: state.diary,
@@ -129,10 +188,11 @@ export const useStore = create<Store>()(
         missions: state.missions,
         milestones: state.milestones,
         points: state.points,
+        taskCompletions: state.taskCompletions,
       }),
     }
   )
 );
 
 export type { Store };
-
+export type { Milestone } from '../types/milestone';

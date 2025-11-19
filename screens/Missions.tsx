@@ -38,11 +38,11 @@ const styles = StyleSheet.create({
   header: {
     fontSize: 28,
     fontWeight: '800',
+    fontFamily: 'Inter-Bold',
     marginBottom: 16,
-    color: '#111827',
+    color: '#4A2A16',
   },
   grid: {
     alignItems: 'center',
   },
 });
-

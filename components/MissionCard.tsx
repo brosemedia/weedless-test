@@ -28,15 +28,15 @@ export default function MissionCard({ title, points, image, completed = false }:
 
   useEffect(() => {
     if (Platform.OS !== 'ios') return;
-    let sub: any;
+    let subscription: ReturnType<typeof AccessibilityInfo.addEventListener> | undefined;
     AccessibilityInfo.isReduceMotionEnabled()
       .then(setReduceMotion)
       .catch(() => {});
-    // @ts-expect-error RN typing differs by version
-    sub = AccessibilityInfo.addEventListener?.('reduceMotionChanged', (v: boolean) => setReduceMotion(!!v));
+    subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', (v) => {
+      setReduceMotion(!!v);
+    });
     return () => {
-      // @ts-expect-error RN typing differs by version
-      sub?.remove?.();
+      subscription?.remove();
     };
   }, []);
 
@@ -89,7 +89,7 @@ export default function MissionCard({ title, points, image, completed = false }:
               height={h - STROKE_WIDTH}
               rx={BORDER_RADIUS}
               ry={BORDER_RADIUS}
-              stroke="#22c55e"
+              stroke="#D4AF37"
               strokeWidth={STROKE_WIDTH}
               fill="transparent"
             />
@@ -114,7 +114,7 @@ export default function MissionCard({ title, points, image, completed = false }:
                 height={h - STROKE_WIDTH}
                 rx={BORDER_RADIUS}
                 ry={BORDER_RADIUS}
-                stroke="#7dd3fc"
+                stroke="#E08C55"
                 strokeWidth={STROKE_WIDTH}
                 strokeDasharray={[dash, gap]}
                 strokeLinecap="round"
@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
     height: CARD_HEIGHT,
     borderRadius: BORDER_RADIUS,
     overflow: 'hidden',
-    backgroundColor: '#111827',
+    backgroundColor: '#4A2A16',
   },
   imageBg: {
     flex: 1,
@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.2)',
+    backgroundColor: 'rgba(74,42,22,0.28)',
   },
   content: {
     flex: 1,
@@ -162,22 +162,24 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   title: {
-    color: 'white',
+    color: '#FFEBD2',
     fontSize: 20,
     fontWeight: '700',
+    fontFamily: 'Inter-Bold',
   },
   pointsPill: {
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    borderColor: 'rgba(255,255,255,0.35)',
+    backgroundColor: 'rgba(255,240,223,0.25)',
+    borderColor: 'rgba(255,240,223,0.45)',
     borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
   },
   pointsText: {
-    color: 'white',
+    color: '#FFF4DF',
     fontWeight: '600',
+    fontFamily: 'Inter-SemiBold',
     fontSize: 14,
     letterSpacing: 0.3,
   },
@@ -187,4 +189,3 @@ const styles = StyleSheet.create({
     top: 0,
   },
 });
-

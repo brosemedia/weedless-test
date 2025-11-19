@@ -1,42 +1,42 @@
 export const colors = {
   light: {
-    // warmes, sehr helles Beige
-    bg: '#FCFBF7',
-    // Kartenhintergrund
-    surface: '#F5F7F2',
-    surfaceMuted: '#F5F7F2',
-    // fast schwarz
-    text: '#111827',
-    // grau
-    textMuted: '#4B5563',
-    border: '#E5E7EB',
-    // Weedless-Grün
-    primary: '#4F7A1F',
-    // Akzentgrün (Ring/Hover)
-    primaryRing: '#8FBF3F',
-    primaryMuted: '#E8F1DA',
-    info: '#0EA5E9',
-    warning: '#F59E0B',
-    success: '#16A34A',
-    danger: '#DC2626',
-    // Dunkelblau (CTA-Hintergrund)
-    navy: '#0D2B4A',
-    overlay: 'rgba(0,0,0,0.2)',
+    // App-Hintergrund ist transparent, damit das globale Hero-Bild sichtbar bleibt
+    bg: 'transparent',
+    // Kartenflächen freundlich hell
+    surface: '#FFFFFF',
+    surfaceMuted: '#F7F4EC',
+    // Primärer Text im tiefen Grün
+    text: '#335928',
+    // Sekundärer Text in Oliv
+    textMuted: '#657744',
+    border: '#E2D7C3',
+    // Primärer Akzent (Olivgrün)
+    primary: '#A1A61F',
+    // hellerer Akzent für Glanz
+    primaryRing: '#D3D85C',
+    primaryMuted: '#E6E9A0',
+    info: '#335928',
+    warning: '#D99A25',
+    success: '#335928',
+    danger: '#A65A2E',
+    // Warmes Braun für dunkle Flächen
+    navy: '#A65A2E',
+    overlay: 'rgba(51, 89, 40, 0.18)',
   },
   dark: {
-    bg: '#0A0F0B',
-    surface: '#121712',
-    surfaceMuted: '#121712',
-    primary: '#8CCF55',
-    primaryRing: '#A4E06C',
-    text: '#F9FAFB',
-    textMuted: '#9CA3AF',
-    border: '#1F2937',
-    info: '#38BDF8',
-    warning: '#FBBF24',
-    success: '#22C55E',
-    danger: '#F87171',
-    navy: '#17314F',
+    bg: '#2B1A12',
+    surface: '#3A2316',
+    surfaceMuted: '#442819',
+    primary: '#E59C65',
+    primaryRing: '#F4B884',
+    text: '#FDF1E2',
+    textMuted: '#D8BFA7',
+    border: '#4F2F1E',
+    info: '#F3A261',
+    warning: '#F5B273',
+    success: '#E09E72',
+    danger: '#E27D5E',
+    navy: '#5C2F18',
     overlay: 'rgba(0,0,0,0.4)',
   },
 } as const;
@@ -79,15 +79,22 @@ export const fontWeights = {
   bold: '700',
 } as const;
 
+export const fonts = {
+  regular: 'Inter-Regular',
+  medium: 'Inter-SemiBold',
+  semibold: 'Inter-SemiBold',
+  bold: 'Inter-Bold',
+} as const;
+
 export const typography = {
   sizes: {
     xs: 12,
     s: 14,
     m: 16,
     l: 18,
-    xl: 22,
-    xxl: 26,
-    display: 32,
+    xl: 24,
+    xxl: 30,
+    display: 36,
   },
   weights: {
     regular: '400',
@@ -96,10 +103,12 @@ export const typography = {
     bold: '700',
   } as const,
   variants: {
-    h1: { fontSize: 26, fontWeight: '700' as const },
-    h2: { fontSize: 20, fontWeight: '700' as const },
-    body: { fontSize: 16, fontWeight: '400' as const },
-    label: { fontSize: 12, fontWeight: '500' as const },
+    h1: { fontSize: 30, fontFamily: fonts.bold, letterSpacing: 0.2 },
+    h2: { fontSize: 20, fontFamily: fonts.semibold },
+    body: { fontSize: 16, fontFamily: fonts.regular, lineHeight: 22 },
+    label: { fontSize: 13, fontFamily: fonts.semibold, letterSpacing: 0.4, textTransform: 'uppercase' },
+    button: { fontSize: 16, fontFamily: fonts.semibold },
+    caption: { fontSize: 12, fontFamily: fonts.medium },
   },
 } as const;
 

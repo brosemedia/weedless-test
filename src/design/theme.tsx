@@ -1,6 +1,7 @@
 import React, { createContext, useContext } from 'react';
-import { View, Text, Pressable, type ViewProps, type TextProps, type GestureResponderEvent } from 'react-native';
+import { View, Text, Pressable, type ViewProps, type TextProps, type GestureResponderEvent, type DimensionValue } from 'react-native';
 import { colors, radius, radii, spacing, typography, type ColorMode, defaultMode } from './tokens';
+import { FrostedSurface } from './FrostedSurface';
 
 type Mode = 'light' | 'dark';
 
@@ -61,7 +62,12 @@ export function ThemedView(
 }
 
 export function ThemedText(
-  { kind = 'body', muted, style, ...rest }: TextProps & { kind?: 'h1' | 'h2' | 'body' | 'label'; muted?: boolean }
+  {
+    kind = 'body',
+    muted,
+    style,
+    ...rest
+  }: TextProps & { kind?: 'h1' | 'h2' | 'body' | 'label' | 'button' | 'caption'; muted?: boolean }
 ) {
   const { c, typography } = useTheme();
   const base =
@@ -69,6 +75,10 @@ export function ThemedText(
       ? (typography.variants.h1 as any)
       : kind === 'h2'
       ? (typography.variants.h2 as any)
+      : kind === 'button'
+      ? (typography.variants.button as any)
+      : kind === 'caption'
+      ? (typography.variants.caption as any)
       : kind === 'label'
       ? (typography.variants.label as any)
       : (typography.variants.body as any);
@@ -78,25 +88,26 @@ export function ThemedText(
 export function Card({ children, style }: { children: React.ReactNode; style?: any }) {
   const { c, radius, spacing } = useTheme();
   return (
-    <View
+    <FrostedSurface
+      borderRadius={radius.l}
+      fallbackColor="rgba(255,255,255,0.05)"
+      overlayColor="rgba(255,255,255,0.18)"
       style={[
         {
-          backgroundColor: c.surface,
-          borderRadius: radius.l,
           padding: spacing.l,
           borderWidth: 1,
-          borderColor: c.border,
+          borderColor: 'rgba(255,255,255,0.35)',
         },
         style,
       ]}
     >
       {children}
-    </View>
+    </FrostedSurface>
   );
 }
 
 export function PrimaryButton({ title, onPress }: { title: string; onPress: () => void }) {
-  const { c, spacing, radius } = useTheme();
+  const { c, spacing, radius, typography } = useTheme();
   return (
     <Pressable
       accessibilityRole="button"
@@ -112,7 +123,7 @@ export function PrimaryButton({ title, onPress }: { title: string; onPress: () =
         minHeight: 44,
       })}
     >
-      <Text style={{ color: 'white', fontWeight: '700' }}>{title}</Text>
+      <Text style={{ color: 'white', ...(typography.variants.button as any) }}>{title}</Text>
     </Pressable>
   );
 }
@@ -136,10 +147,17 @@ export function SectionHeader({ title, subtitle }: { title: string; subtitle?: s
 export function ProgressBar({ value }: { value: number }) {
   const { c, radius } = useTheme();
   const clamped = Math.max(0, Math.min(1, value));
-  const width = `${clamped * 100}%`;
+  const widthPercent = `${Math.round(clamped * 100)}%`;
   return (
     <View style={{ height: 10, backgroundColor: c.border, borderRadius: radius.pill }}>
-      <View style={{ height: 10, width, backgroundColor: c.primaryRing, borderRadius: radius.pill }} />
+      <View
+        style={{
+          height: 10,
+          width: widthPercent as unknown as DimensionValue,
+          backgroundColor: c.primaryRing,
+          borderRadius: radius.pill,
+        }}
+      />
     </View>
   );
 }
@@ -219,7 +237,7 @@ export function Button({ title, onPress, tone = 'primary', disabled, fullWidth }
         width: fullWidth ? '100%' : undefined,
       }}
     >
-      <Text style={{ color: labelColor, fontWeight: '600' }}>{title}</Text>
+      <Text style={{ color: labelColor, ...(theme.typography.variants.button as any) }}>{title}</Text>
     </Pressable>
   );
 }

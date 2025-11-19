@@ -12,13 +12,19 @@ export interface SavingGoal {
   imageUrl?: string;
 }
 
-export interface Profile {}
 export interface Profile {
   startedAt: string;
   goalMode: GoalMode;
   baseline: Baseline;
   savingGoal?: SavingGoal;
   currency: 'EUR' | 'USD' | string;
+  locale: string;
+  pauseStartISO: string;
+  pricePerGram: number;
+  gramsPerDayBaseline: number;
+  jointsPerDayBaseline: number;
+  gramsPerJoint: number;
+  avgSessionMinutes: number;
 }
 
 export interface DiaryEntry {

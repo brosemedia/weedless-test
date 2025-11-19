@@ -1,339 +1,675 @@
-import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { View, FlatList, Pressable, Modal, Animated, Easing } from 'react-native';
-import ReAnimated, { useSharedValue, useAnimatedProps, withRepeat, withTiming, Easing as ReEasing, cancelAnimation } from 'react-native-reanimated';
+import React, { useMemo, useState } from 'react';
+import { ScrollView, View, Text, StyleSheet, Pressable, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ThemedView, ThemedText, PrimaryButton, SectionHeader, Card } from '../design/theme';
-import { spacing, radius } from '../design/tokens';
-import Svg, { Defs, LinearGradient, Stop, Rect, Rect as SvgRect } from 'react-native-svg';
-import { useStore, type Mission as MissionType } from '../store/useStore';
+import { Ionicons } from '@expo/vector-icons';
+import { colors, spacing, radius, shadows } from '../design/tokens';
+import { FrostedSurface } from '../design/FrostedSurface';
+import { HEADER_TOTAL_HEIGHT } from '../components/AppHeader';
+import { Article, ARTICLES } from '../content/articles';
+import { useQuickActionsVisibility } from '../hooks/useQuickActionsVisibility';
+import { useHeaderTransparency } from '../hooks/useHeaderTransparency';
+type TagTheme = {
+  badgeBackground: string;
+  badgeText: string;
+  heroBackground: string;
+  heroBorder: string;
+};
 
-export default function Missions({ navigation, route }: any) {
+const TAG_THEMES: Record<Article['tag'], TagTheme> = {
+  Strategie: {
+    badgeBackground: '#F8D294',
+    badgeText: '#5C3310',
+    heroBackground: '#FFF8EC',
+    heroBorder: '#F5D9A8',
+  },
+  Wissen: {
+    badgeBackground: '#D1E8FF',
+    badgeText: '#12446B',
+    heroBackground: '#F3F8FF',
+    heroBorder: '#D8E9FF',
+  },
+  Selbstfürsorge: {
+    badgeBackground: '#F9B9C4',
+    badgeText: '#65192E',
+    heroBackground: '#FFF1F4',
+    heroBorder: '#F9C6CF',
+  },
+  Mindset: {
+    badgeBackground: '#F4D4FF',
+    badgeText: '#4A1771',
+    heroBackground: '#FBF3FF',
+    heroBorder: '#E8C4FF',
+  },
+};
+
+type MarkdownBlock =
+  | { type: 'heading'; text: string }
+  | { type: 'paragraph'; text: string }
+  | { type: 'bullet'; text: string }
+  | { type: 'numbered'; index: string; text: string }
+  | { type: 'quote'; text: string };
+
+const normalizeInline = (text: string) =>
+  text
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/`([^`]*)`/g, '$1')
+    .trim();
+
+const parseMarkdown = (input: string): MarkdownBlock[] => {
+  const lines = input.split(/\r?\n/);
+  const blocks: MarkdownBlock[] = [];
+  let paragraph: string[] = [];
+
+  const flushParagraph = () => {
+    if (paragraph.length) {
+      blocks.push({ type: 'paragraph', text: normalizeInline(paragraph.join(' ')) });
+      paragraph = [];
+    }
+  };
+
+  lines.forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      flushParagraph();
+      return;
+    }
+    if (trimmed.startsWith('## ')) {
+      flushParagraph();
+      blocks.push({ type: 'heading', text: normalizeInline(trimmed.slice(3)) });
+      return;
+    }
+    if (trimmed.startsWith('- ')) {
+      flushParagraph();
+      blocks.push({ type: 'bullet', text: normalizeInline(trimmed.slice(2)) });
+      return;
+    }
+    const numberedMatch = trimmed.match(/^(\d+)[\.\)]\s*(.*)$/);
+    if (numberedMatch) {
+      flushParagraph();
+      blocks.push({
+        type: 'numbered',
+        index: numberedMatch[1],
+        text: normalizeInline(numberedMatch[2]),
+      });
+      return;
+    }
+    if (trimmed.startsWith('> ')) {
+      flushParagraph();
+      blocks.push({ type: 'quote', text: normalizeInline(trimmed.slice(2)) });
+      return;
+    }
+    paragraph.push(trimmed);
+  });
+
+  flushParagraph();
+  if (!blocks.length && input.trim().length) {
+    blocks.push({ type: 'paragraph', text: normalizeInline(input) });
+  }
+  return blocks;
+};
+
+type ArticleOverlayProps = {
+  article: Article;
+  index: number;
+  total: number;
+  onClose: () => void;
+  onPrev: () => void;
+  onNext: () => void;
+  hasPrev: boolean;
+  hasNext: boolean;
+  theme: TagTheme;
+};
+
+function ArticleOverlay({
+  article,
+  index,
+  total,
+  onClose,
+  onPrev,
+  onNext,
+  hasPrev,
+  hasNext,
+  theme,
+}: ArticleOverlayProps) {
   const insets = useSafeAreaInsets();
-  const focus: 'craving' | 'withdrawal' | 'sleep' | undefined = route?.params?.focus;
-  const missions = useStore((s) => s.missions);
-  const setMissions = useStore((s) => s.setMissions);
-  const completeMission = useStore((s) => s.completeMission);
-  const points = useStore((s) => s.points);
-  const [selected, setSelected] = useState<MissionType | null>(null);
-  const maxPoints = (missions ?? []).reduce((sum, m) => sum + (m.points || 0), 0);
+  useQuickActionsVisibility('knowledge-article', true);
+  const blocks = useMemo(() => parseMarkdown(article.content), [article.content]);
 
-  function content(k: 'craving' | 'withdrawal' | 'sleep') {
-    if (k === 'craving')
-      return {
-        title: 'Urge Surfing (3× 1 Min)',
-        body:
-          'Wenn Verlangen auftritt: Welle bemerken, benennen, bewusst atmen, ziehen lassen. Ziel: 3 kurze Durchgänge heute.',
-      };
-    if (k === 'withdrawal')
-      return {
-        title: '4-7-8 Atmen (×3)',
-        body:
-          '4s ein, 7s halten, 8s aus – 3 Durchgänge, beruhigt vegetatives Nervensystem und Entzugssymptome.',
-      };
-    return {
-      title: 'Schlaf-Mini-Reset',
-      body:
-        '30 Min früher ins Bett, Bildschirm 60 Min vorher aus, Schlafzimmer kühl & dunkel.',
-    };
-  }
-  const c = focus ? content(focus) : content('craving');
-  // Seed some default missions if empty
-  const defaults: MissionType[] = useMemo(
-    () => [
-      { id: 'm1', title: 'Urge Surfing', description: c.body, points: 10, icon: '🌊' },
-      { id: 'm2', title: '4-7-8 Atmen', description: '3 Durchgänge bewusst atmen.', points: 8, icon: '🫁' },
-      { id: 'm3', title: 'Schlaf Reset', description: 'Heute 30 Min früher ins Bett.', points: 7, icon: '🛌' },
-      { id: 'm4', title: '10-Min Delay', description: 'Verzögere einen Impuls um 10 Min.', points: 5, icon: '⏳' },
-      { id: 'm5', title: '5-Min Walk', description: 'Kurzer Spaziergang bei Trigger.', points: 5, icon: '🚶' },
-      { id: 'm6', title: 'Tagebuch', description: '1 Trigger + Coping notieren.', points: 6, icon: '📝' },
-    ],
-    [c.body]
-  );
-  if (!missions || missions.length === 0) setMissions(defaults);
+  const handleSourcePress = (url: string) => {
+    Linking.openURL(url).catch(() => {
+      // eslint-disable-next-line no-console
+      console.warn('Konnte Link nicht öffnen', url);
+    });
+  };
 
-  function roundedRectPerimeter(w: number, h: number, r: number) {
-    const straight = 2 * (w - 2 * r) + 2 * (h - 2 * r);
-    const arcs = 2 * Math.PI * r;
-    return straight + arcs;
-  }
-
-  // Karte mit Status-Darstellung und Puls-Animation für erledigte Missionen
-  function MissionTile({ item, index, onPress }: { item: MissionType; index: number; onPress: () => void }) {
-    const isDone = !!item.completedAt;
-    // Pulsierender Rand (Gold) für erledigte Missionen
-    const badgeScale = useRef(new Animated.Value(isDone ? 1 : 0)).current;
-    const prevDoneRef = useRef(isDone);
-    const breathe = useRef(new Animated.Value(0)).current;
-    const [box, setBox] = useState<{ w: number; h: number }>({ w: 0, h: 150 });
-    const stripeOffset = useSharedValue(0);
-    const stripeOpacity = useSharedValue(0);
-    const pulse = useSharedValue(0);
-    const perimeter = useMemo(() => (box.w ? roundedRectPerimeter(box.w - 6, 150 - 6, (radius.l as number) - 3) : 0), [box.w]);
-    const palette = useMemo(
-      () => [
-        ['#FDE2E4', '#FAD2E1'],
-        ['#E0F2FE', '#BAE6FD'],
-        ['#E9D5FF', '#DDD6FE'],
-        ['#D1FAE5', '#A7F3D0'],
-        ['#FEF3C7', '#FDE68A'],
-        ['#E0E7FF', '#C7D2FE'],
-        ['#DCFCE7', '#BBF7D0'],
-        ['#FFE4E6', '#FBCFE8'],
-      ],
-      []
-    );
-    const idx = palette.length ? ((index * 3) % palette.length) : 0;
-    const [c1, c2] = palette[idx] ?? ['#E0F2FE', '#BAE6FD'];
-    const animatedLight = useAnimatedProps(() => ({ strokeOpacity: 0.3 + 0.5 * pulse.value }));
-    const animatedDark = useAnimatedProps(() => ({ strokeOpacity: 0.7 - 0.5 * pulse.value }));
-
-    useEffect(() => {
-      // Pulsierender Gold-Rand (kein Schlange-Laufen)
-      cancelAnimation(pulse);
-      if (!isDone) return;
-      pulse.value = 0;
-      pulse.value = withRepeat(
-        withTiming(1, { duration: 1400, easing: ReEasing.inOut(ReEasing.quad) }),
-        -1,
-        true
-      );
-      return () => cancelAnimation(pulse);
-    }, [isDone]);
-
-    useEffect(() => {
-      if (isDone && !prevDoneRef.current) {
-        Animated.spring(badgeScale, {
-          toValue: 1,
-          useNativeDriver: true,
-          damping: 12,
-          stiffness: 140,
-          mass: 0.6,
-        }).start();
-      } else if (!isDone) {
-        badgeScale.setValue(0);
-      }
-      prevDoneRef.current = isDone;
-    }, [isDone, badgeScale]);
-
-    useEffect(() => {
-      // Grauer Pulsrand bei offenen Karten
-      if (!isDone) {
-        const loop = Animated.loop(
-          Animated.sequence([
-            Animated.timing(breathe, { toValue: 1, duration: 1600, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-            Animated.timing(breathe, { toValue: 0, duration: 1600, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-          ])
-        );
-        loop.start();
-        return () => loop.stop();
-      }
-    }, [isDone]);
-
-    return (
-      <Pressable onPress={onPress} style={{ flex: 1 }} accessibilityRole="button">
-        <View
-          style={{
-            borderRadius: radius.l,
-            overflow: 'hidden',
-            // Glow for completed
-            ...(isDone
-              ? {
-                  shadowColor: '#22c55e',
-                  shadowOpacity: 0.5,
-                  shadowRadius: 18,
-                  shadowOffset: { width: 0, height: 0 },
-                  elevation: 8,
-                }
-              : {
-                  shadowColor: '#000',
-                  shadowOpacity: 0.08,
-                  shadowRadius: 8,
-                  shadowOffset: { width: 0, height: 2 },
-                  elevation: 2,
-                }),
-          }}
-          onLayout={(e) => setBox({ w: e.nativeEvent.layout.width, h: 150 })}
-        >
-          {isDone ? (
-            <View>
-              <Svg width="100%" height="150">
-                <Defs>
-                  {/* Cannabis-inspirierter Grünton-Verlauf */}
-                  <LinearGradient id={'pastel-' + item.id} x1="0" y1="0" x2="1" y2="1">
-                    <Stop offset="0%" stopColor={c1} />
-                    <Stop offset="100%" stopColor={c2} />
-                  </LinearGradient>
-                </Defs>
-                <Rect x="0" y="0" width="100%" height="100%" fill={'url(#pastel-' + item.id + ')'} />
-              </Svg>
-              {/* Pulsierender Gold-Rand in zwei Tönen */}
-              <Svg width="100%" height="150" style={{ position: 'absolute', top: 0, left: 0 }} pointerEvents="none">
-                {(() => {
-                  const AnimatedRect = ReAnimated.createAnimatedComponent(SvgRect as any);
-                  return (
-                    <>
-                      <SvgRect
-                        x={0}
-                        y={0}
-                        width={box.w}
-                        height={150}
-                        rx={radius.l as number}
-                        ry={radius.l as number}
-                        stroke="#D4AF37"
-                        strokeOpacity={0.4}
-                        strokeWidth={3}
-                        fill="transparent"
-                      />
-                      <AnimatedRect
-                        animatedProps={animatedLight as any}
-                        x={0}
-                        y={0}
-                        width={box.w}
-                        height={150}
-                        rx={radius.l as number}
-                        ry={radius.l as number}
-                        stroke="#FFE08A"
-                        strokeWidth={4}
-                        fill="transparent"
-                      />
-                      <AnimatedRect
-                        animatedProps={animatedDark as any}
-                        x={0}
-                        y={0}
-                        width={box.w}
-                        height={150}
-                        rx={radius.l as number}
-                        ry={radius.l as number}
-                        stroke="#CFA63A"
-                        strokeWidth={4}
-                        fill="transparent"
-                      />
-                    </>
-                  );
-                })()}
-              </Svg>
-            </View>
-          ) : (
-            <View style={{ width: '100%', height: 150, backgroundColor: '#E5E7EB' }}>
-              </View>
-          )}
-          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 26 }}>
-            {/* Icon in eigene obere Zeile */}
-            <ThemedText kind="h2" style={{ marginBottom: 4, color: isDone ? '#0F172A' : '#111827' }}>
-              {item.icon ? item.icon : '🍃'}
-            </ThemedText>
-            <ThemedText kind="h2" style={!isDone ? { color: '#111827' } : { color: '#0F172A' }}>
-              {item.title}
-            </ThemedText>
-            <ThemedText muted style={{ marginTop: 4, ...(isDone ? { color: '#334155' } : { color: '#374151' }) }}>
-              {(isDone ? (item.points || 0) : 0)}/{item.points || 0} Punkte
-            </ThemedText>
-            {isDone ? (
-              <Animated.View
-                style={{
-                  marginTop: 8,
-                  alignSelf: 'flex-start',
-                  backgroundColor: '#D4AF37',
-                  paddingHorizontal: 8,
-                  paddingVertical: 4,
-                  borderRadius: 999,
-                  transform: [{ scale: badgeScale }],
-                }}
-              >
-                <ThemedText kind="label" style={{ color: '#1F2937' }}>Abgeschlossen</ThemedText>
-              </Animated.View>
-            ) : (
-              <View
-                style={{
-                  marginTop: 8,
-                  alignSelf: 'flex-start',
-                  backgroundColor: '#9CA3AF',
-                  paddingHorizontal: 8,
-                  paddingVertical: 4,
-                  borderRadius: 999,
-                }}
-              >
-                <ThemedText kind="label" style={{ color: 'white' }}>Offen</ThemedText>
-              </View>
-            )}
-          </View>
-          {!isDone ? (
-            <Animated.View
-              pointerEvents="none"
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                borderRadius: radius.l,
-                borderWidth: 3,
-                borderColor: '#9CA3AF',
-                opacity: breathe.interpolate({ inputRange: [0, 1], outputRange: [0.35, 0.85] }),
-                transform: [{ scale: breathe.interpolate({ inputRange: [0, 1], outputRange: [1, 1.03] }) }],
-              }}
-            />
-          ) : null}
-        </View>
-      </Pressable>
-    );
-  }
+  const blocksToRender: MarkdownBlock[] = blocks.length
+    ? blocks
+    : [{ type: 'paragraph', text: article.content.trim() }];
 
   return (
-    <ThemedView style={{ flex: 1 }}>
+    <View style={styles.readerOverlay}>
       <View
-        style={{
-          flex: 1,
-          paddingHorizontal: spacing.xl as any,
-          paddingTop: insets.top + (spacing.m as any),
-          paddingBottom: Math.max(spacing.l as any, insets.bottom),
-          gap: spacing.l as any,
-        }}
+        style={[
+          styles.readerSheet,
+          {
+            paddingTop: Math.max(spacing.xs, insets.top),
+            paddingBottom: insets.bottom + spacing.s,
+          },
+        ]}
       >
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <ThemedText kind="h2">Missionen</ThemedText>
-                    <Card style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 10 }}>
-            <ThemedText kind="h1" style={{ color: '#D4AF37', marginRight: 6 }}>{String.fromCodePoint(0x1F451)}</ThemedText>
-            <ThemedText kind="h1" style={{ color: '#D4AF37' }}>{points}/{maxPoints}</ThemedText>
-          </Card>
-        </View>
-
-        <FlatList
-          data={missions}
-          keyExtractor={(item) => item.id}
-          numColumns={2}
-          columnWrapperStyle={{ gap: spacing.m as any, marginBottom: spacing.m as any }}
-          renderItem={({ item, index }) => (
-            <MissionTile item={item} index={index} onPress={() => setSelected(item)} />
-          )}
-        />
-
-        <PrimaryButton title="Zum Check-in" onPress={() => navigation?.navigate('Check-in')} />
-
-        <Modal visible={!!selected} transparent animationType="fade" onRequestClose={() => setSelected(null)}>
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.25)', justifyContent: 'center', padding: spacing.xl }}>
-            <View style={{ backgroundColor: 'white', borderRadius: radius.l, padding: spacing.l }}>
-              <ThemedText kind="h2">{selected?.title}</ThemedText>
-              <ThemedText style={{ marginTop: 8 }}>{selected?.description}</ThemedText>
-              <View style={{ height: spacing.m as any }} />
-              {selected?.completedAt ? (
-                <ThemedText kind="label" muted>Bereits abgeschlossen</ThemedText>
-              ) : (
-                <PrimaryButton
-                  title={`Abschließen +${selected?.points ?? 0} Punkte`}
-                  onPress={() => {
-                    if (selected) completeMission(selected.id);
-                    setSelected(null);
-                  }}
-                />
-              )}
-              <View style={{ height: spacing.m as any }} />
-              <PrimaryButton title="Schließen" onPress={() => setSelected(null)} />
-            </View>
+        <Pressable
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Artikel schließen"
+          style={({ pressed }) => [styles.readerCloseButton, pressed && styles.readerCloseButtonPressed]}
+        >
+          <Ionicons name='close' size={20} color={colors.light.text} />
+        </Pressable>
+        <ScrollView
+          style={styles.readerScroll}
+          contentContainerStyle={{
+            paddingBottom: insets.bottom + spacing.l,
+            gap: spacing.l,
+          }}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.readerHeader}>
+            <Text style={styles.readerMeta}>
+              {article.tag} • {article.readMinutes} Min Lesezeit
+            </Text>
+            <Text style={styles.readerTitle}>{article.title}</Text>
           </View>
-        </Modal>
+          <View
+            style={[
+              styles.readerHero,
+              { backgroundColor: theme.heroBackground, borderColor: theme.heroBorder },
+            ]}
+          >
+            <Text style={styles.readerHeroText}>{article.excerpt}</Text>
+          </View>
+          <View style={styles.readerContent}>
+            {blocksToRender.map((block, idx) => {
+              if (block.type === 'heading') {
+                return (
+                  <View key={`heading-${idx}`} style={styles.readerHeadingBlock}>
+                    <Text style={styles.readerSectionHeading}>{block.text}</Text>
+                    <View style={styles.readerHeadingDivider} />
+                  </View>
+                );
+              }
+              if (block.type === 'paragraph') {
+                return (
+                  <View key={`paragraph-${idx}`} style={styles.readerParagraphCard}>
+                    <Text style={styles.readerParagraphText}>{block.text}</Text>
+                  </View>
+                );
+              }
+              if (block.type === 'bullet') {
+                return (
+                  <View key={`bullet-${idx}`} style={[styles.readerParagraphCard, styles.readerListItem]}>
+                    <Text style={styles.readerParagraphText}>{block.text}</Text>
+                  </View>
+                );
+              }
+              if (block.type === 'numbered') {
+                return (
+                  <View
+                    key={`number-${idx}`}
+                    style={[styles.readerParagraphCard, styles.readerNumberedCard]}
+                  >
+                    <View style={styles.readerNumberBadge}>
+                      <Text style={styles.readerNumberBadgeText}>{block.index}</Text>
+                    </View>
+                    <View style={styles.readerNumberedText}>
+                      <Text style={styles.readerParagraphText}>{block.text}</Text>
+                    </View>
+                  </View>
+                );
+              }
+              if (block.type === 'quote') {
+                return (
+                  <View key={`quote-${idx}`} style={styles.readerQuote}>
+                    <Text style={styles.readerQuoteText}>{block.text}</Text>
+                  </View>
+                );
+              }
+              return null;
+            })}
+            {article.sources.length ? (
+              <View style={styles.readerSourcesCard}>
+                <Text style={styles.readerSectionHeading}>Quellen</Text>
+                {article.sources.map((source) => (
+                  <Pressable
+                    key={source.url}
+                    onPress={() => handleSourcePress(source.url)}
+                    style={({ pressed }) => [styles.readerSourceItem, pressed && styles.readerSourceItemPressed]}
+                  >
+                    <Ionicons name="link-outline" size={16} color={colors.light.primary} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.readerSourceLabel}>{source.label}</Text>
+                      <Text style={styles.readerSourceUrl}>{source.url}</Text>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+          </View>
+        </ScrollView>
+        <View style={styles.readerPagerSection}>
+          <View style={styles.readerPager}>
+            <Pressable
+              onPress={hasPrev ? onPrev : undefined}
+              disabled={!hasPrev}
+              accessibilityLabel="Vorheriger Artikel"
+              style={[styles.readerPagerButton, !hasPrev && styles.readerPagerButtonDisabled]}
+            >
+              <Ionicons name="chevron-back" size={18} color={hasPrev ? colors.light.text : colors.light.textMuted} />
+            </Pressable>
+            <Text style={styles.readerPagerLabel}>
+              Artikel {index + 1} von {total}
+            </Text>
+            <Pressable
+              onPress={hasNext ? onNext : undefined}
+              disabled={!hasNext}
+              accessibilityLabel="Nächster Artikel"
+              style={[styles.readerPagerButton, !hasNext && styles.readerPagerButtonDisabled]}
+            >
+              <Ionicons name="chevron-forward" size={18} color={hasNext ? colors.light.text : colors.light.textMuted} />
+            </Pressable>
+          </View>
+        </View>
       </View>
-    </ThemedView>
+    </View>
   );
 }
 
+export default function KnowledgeScreen() {
+  const insets = useSafeAreaInsets();
+  const { handleScroll } = useHeaderTransparency();
+  const [activeArticleIndex, setActiveArticleIndex] = useState<number | null>(null);
+  const hasActiveArticle = activeArticleIndex !== null;
+  const activeArticle = useMemo(
+    () => (activeArticleIndex === null ? null : ARTICLES[activeArticleIndex]),
+    [activeArticleIndex]
+  );
+
+  const openArticle = (index: number) => setActiveArticleIndex(index);
+  const closeArticle = () => setActiveArticleIndex(null);
+
+  const goPrev = () => {
+    setActiveArticleIndex((prev) => {
+      if (prev === null || prev <= 0) return prev;
+      return prev - 1;
+    });
+  };
+
+  const goNext = () => {
+    setActiveArticleIndex((prev) => {
+      if (prev === null || prev >= ARTICLES.length - 1) return prev;
+      return prev + 1;
+    });
+  };
+
+  return (
+    <View style={styles.root}>
+      <ScrollView
+        style={{ backgroundColor: 'transparent' }}
+        contentContainerStyle={[
+          styles.container,
+          {
+            paddingTop: insets.top + HEADER_TOTAL_HEIGHT + spacing.l,
+            paddingBottom: Math.max(spacing.xl, insets.bottom + spacing.m),
+          },
+        ]}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+      >
+        <Text style={styles.title}>Wissen</Text>
+        <Text style={styles.intro}>
+          Hier findest du kompakte Artikel rund um Konsumreduktion, Gesundheit und Motivation. Die Themen
+          werden laufend erweitert – starte mit den Highlights unten.
+        </Text>
+
+        <View style={styles.list}>
+          {ARTICLES.map((article, index) => {
+            const theme = TAG_THEMES[article.tag];
+            return (
+              <Pressable
+                key={article.id}
+                onPress={() => openArticle(index)}
+                style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+              >
+                <FrostedSurface
+                  borderRadius={radius.xl}
+                  intensity={85}
+                  fallbackColor="rgba(255,255,255,0.04)"
+                  overlayColor="rgba(255,255,255,0.18)"
+                  style={styles.cardInner}
+                >
+                  <View style={styles.metaRow}>
+                    <View style={[styles.tag, { backgroundColor: theme.badgeBackground }]}>
+                      <Text style={[styles.tagText, { color: theme.badgeText }]}>{article.tag}</Text>
+                    </View>
+                    <Text style={styles.readingTime}>{article.readMinutes} Min Lesezeit</Text>
+                  </View>
+                  <Text style={styles.cardTitle} numberOfLines={2}>
+                    {article.title}
+                  </Text>
+                  <Text style={styles.cardDescription} numberOfLines={4}>
+                    {article.excerpt}
+                  </Text>
+                  <View style={styles.cardFooter}>
+                    <View style={styles.cardButton}>
+                      <Text style={styles.cardButtonText}>Mehr erfahren</Text>
+                    </View>
+                  </View>
+                </FrostedSurface>
+              </Pressable>
+            );
+          })}
+        </View>
+      </ScrollView>
+      {hasActiveArticle && activeArticle && (
+        <ArticleOverlay
+          article={activeArticle}
+          index={activeArticleIndex as number}
+          total={ARTICLES.length}
+          onClose={closeArticle}
+          onPrev={goPrev}
+          onNext={goNext}
+          hasPrev={(activeArticleIndex as number) > 0}
+          hasNext={(activeArticleIndex as number) < ARTICLES.length - 1}
+          theme={TAG_THEMES[activeArticle.tag]}
+        />
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  container: {
+    paddingHorizontal: spacing.xl,
+    backgroundColor: 'transparent',
+    gap: spacing.m,
+  },
+  title: {
+    fontSize: 30,
+    fontWeight: '800',
+    fontFamily: 'Inter-Bold',
+    color: colors.light.text,
+  },
+  intro: {
+    fontSize: 15,
+    lineHeight: 22,
+    fontFamily: 'Inter-Regular',
+    color: colors.light.textMuted,
+  },
+  list: {
+    marginTop: spacing.s,
+    gap: spacing.l,
+  },
+  card: {
+    borderRadius: radius.xl,
+  },
+  cardInner: {
+    borderRadius: radius.xl,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.l,
+    gap: spacing.m,
+    borderWidth: 2,
+    borderColor: colors.light.primary,
+  },
+  cardPressed: {
+    opacity: 0.95,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  tag: {
+    paddingHorizontal: spacing.m,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
+  },
+  tagText: {
+    fontSize: 12,
+    fontFamily: 'Inter-SemiBold',
+    letterSpacing: 0.3,
+  },
+  readingTime: {
+    fontSize: 13,
+    fontFamily: 'Inter-SemiBold',
+    color: colors.light.textMuted,
+  },
+  cardTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    fontFamily: 'Inter-Bold',
+    color: colors.light.text,
+    marginTop: spacing.s,
+  },
+  cardDescription: {
+    fontSize: 15,
+    lineHeight: 22,
+    fontFamily: 'Inter-Regular',
+    color: colors.light.text,
+    marginTop: spacing.xs,
+    marginBottom: spacing.s,
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingTop: spacing.s,
+  },
+  cardButton: {
+    paddingHorizontal: spacing.l,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.pill,
+    backgroundColor: colors.light.primary,
+    alignSelf: 'flex-end',
+  },
+  cardButtonText: {
+    fontSize: 13,
+    fontFamily: 'Inter-SemiBold',
+    color: colors.light.surface,
+    letterSpacing: 0.2,
+    textTransform: 'uppercase',
+  },
+  readerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  readerSheet: {
+    flex: 1,
+    backgroundColor: colors.light.surface,
+    paddingHorizontal: spacing.l,
+    gap: spacing.l,
+  },
+  readerHeader: {
+    gap: spacing.xs,
+  },
+  readerMeta: {
+    fontSize: 14,
+    fontFamily: 'Inter-SemiBold',
+    color: colors.light.textMuted,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  readerTitle: {
+    fontSize: 26,
+    fontFamily: 'Inter-Bold',
+    lineHeight: 32,
+    color: colors.light.text,
+    marginTop: spacing.xs,
+  },
+  readerCloseButton: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.pill,
+    backgroundColor: colors.light.surfaceMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'flex-end',
+    marginBottom: spacing.s,
+  },
+  readerCloseButtonPressed: {
+    opacity: 0.85,
+  },
+  readerScroll: {
+    flex: 1,
+  },
+  readerHero: {
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    borderWidth: 1,
+    ...shadows.sm,
+  },
+  readerHeroText: {
+    fontSize: 18,
+    lineHeight: 26,
+    fontFamily: 'Inter-SemiBold',
+    color: colors.light.text,
+  },
+  readerContent: {
+    gap: spacing.m,
+  },
+  readerHeadingBlock: {
+    gap: spacing.xs,
+    marginTop: spacing.m,
+  },
+  readerSectionHeading: {
+    fontSize: 18,
+    fontFamily: 'Inter-Bold',
+    color: colors.light.navy,
+    letterSpacing: 0.2,
+  },
+  readerHeadingDivider: {
+    height: 2,
+    width: 42,
+    borderRadius: radius.pill,
+    backgroundColor: colors.light.primary,
+  },
+  readerParagraphCard: {
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderRadius: radius.xl,
+    paddingVertical: spacing.l,
+    paddingHorizontal: spacing.xl,
+    gap: spacing.s,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
+    alignSelf: 'stretch',
+    overflow: 'hidden',
+  },
+  readerParagraphText: {
+    fontSize: 16,
+    lineHeight: 25,
+    color: colors.light.text,
+    fontFamily: 'Inter-Regular',
+    flexShrink: 1,
+  },
+  readerListItem: {
+    gap: spacing.s,
+  },
+  readerNumberedCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.m,
+  },
+  readerNumberedText: {
+    flex: 1,
+  },
+  readerNumberBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.pill,
+    backgroundColor: colors.light.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  readerNumberBadgeText: {
+    color: colors.light.surface,
+    fontFamily: 'Inter-Bold',
+  },
+  readerQuote: {
+    paddingVertical: spacing.l,
+    paddingHorizontal: spacing.xl,
+    borderRadius: radius.xl,
+    backgroundColor: colors.light.surfaceMuted,
+    alignSelf: 'stretch',
+    overflow: 'hidden',
+  },
+  readerQuoteText: {
+    fontSize: 15,
+    lineHeight: 22,
+    fontFamily: 'Inter-Regular',
+    fontStyle: 'italic',
+    color: colors.light.textMuted,
+  },
+  readerSourcesCard: {
+    marginTop: spacing.l,
+    padding: spacing.l,
+    borderRadius: radius.xl,
+    backgroundColor: colors.light.surface,
+    gap: spacing.m,
+    ...shadows.sm,
+  },
+  readerSourceItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.m,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.m,
+    borderRadius: radius.l,
+    backgroundColor: 'rgba(255,255,255,0.85)',
+  },
+  readerSourceItemPressed: {
+    opacity: 0.7,
+  },
+  readerSourceLabel: {
+    fontSize: 14,
+    fontFamily: 'Inter-SemiBold',
+    color: colors.light.text,
+  },
+  readerSourceUrl: {
+    fontSize: 12,
+    fontFamily: 'Inter-Regular',
+    color: colors.light.textMuted,
+  },
+  readerPagerSection: {
+    marginTop: 0,
+    paddingTop: 0,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(0,0,0,0.15)',
+  },
+  readerPager: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: spacing.xs,
+    marginTop: 0,
+  },
+  readerPagerLabel: {
+    fontSize: 14,
+    fontFamily: 'Inter-SemiBold',
+    color: colors.light.textMuted,
+  },
+  readerPagerButton: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.pill,
+    backgroundColor: colors.light.surfaceMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  readerPagerButtonDisabled: {
+    opacity: 0.4,
+  },
+});

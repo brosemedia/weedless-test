@@ -1,17 +1,101 @@
-import React, { useState } from 'react';
-import { ScrollView, View, ImageBackground } from 'react-native';
-import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
-// Import the hero image so Metro can resolve it at build time
-// If the file is missing, the onError fallback will be used.
-// @ts-ignore
-import HeroImage from '../../assets/Hero_1.png';
+import React from 'react';
+import { ScrollView, View, Image, Platform, UIManager } from 'react-native';
+import LottieView from 'lottie-react-native';
+const ICON_SMOKE_FREE = require('../../assets/045-Marijuana.png');
+const CLOCK_TIME_ANIMATION = require('../../assets/clock time.json');
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { HEADER_TOTAL_HEIGHT } from '../components/AppHeader';
 import { useStore } from '../store/useStore';
-import { aggregate, formatDurationSince, lastUseAt } from '../lib/stats';
+import { aggregate, formatDurationSince } from '../lib/stats';
 import { ThemedText, Card, PrimaryButton } from '../design/theme';
 import { colors, spacing, radius } from '../design/tokens';
 import ProgressDial from '../components/ProgressDial';
 import { normCravingPercent, normSleepPercent, normWithdrawalPercent, weakestMetric } from '../lib/scales';
+import LiveKpiGrid from '../../components/LiveKpiGrid';
+import type { Milestone as MilestoneType } from '../types/milestone';
+import { resolveMilestoneIcon } from '../data/milestones';
+import { useApp } from '../store/app';
+import { useStats } from '../lib/selectors';
+import { isProfileComplete } from '../lib/profileGuard';
+import { useOnboardingStore } from '../onboarding/store';
+import RecoveryTimeline from '../components/RecoveryTimeline';
+import { FrostedSurface } from '../design/FrostedSurface';
+import { useHeaderTransparency } from '../hooks/useHeaderTransparency';
+
+const MONTHS_DE = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+const formatDays = (value: number) => `${value} ${value === 1 ? 'Tag' : 'Tage'}`;
+
+const dateKeyToTimestamp = (key: string) => {
+  const [year, month, day] = key.split('-').map((part) => parseInt(part, 10));
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return null;
+  }
+  return new Date(year, month - 1, day, 23, 59, 59, 999).getTime();
+};
+
+const hasNativeLottieSupport = (() => {
+  if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
+    return false;
+  }
+  try {
+    if (typeof UIManager.getViewManagerConfig === 'function') {
+      return !!UIManager.getViewManagerConfig('LottieAnimationView');
+    }
+    return false;
+  } catch {
+    return false;
+  }
+})();
+
+function SmokeFreeBadge({ duration, since }: { duration: string; since?: string | null }) {
+  return (
+    <View
+      style={{
+        alignSelf: 'stretch',
+        width: '100%',
+        backgroundColor: colors.light.primary,
+        borderRadius: radius.xl,
+        paddingVertical: spacing.m as any,
+        paddingHorizontal: spacing.l as any,
+        borderWidth: 1,
+        borderColor: colors.light.primaryRing,
+        shadowColor: colors.light.primary,
+        shadowOpacity: 0.35,
+        shadowRadius: 14,
+        shadowOffset: { width: 0, height: 8 },
+        elevation: 4,
+      }}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.m as any }}>
+        <View style={{ flex: 1 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <ThemedText kind="label" style={{ color: colors.light.surface, textTransform: 'uppercase', letterSpacing: 1 }}>Konsumfreie Zeit</ThemedText>
+            <Image source={ICON_SMOKE_FREE} style={{ width: 24, height: 24, tintColor: colors.light.surface }} resizeMode="contain" />
+          </View>
+          <ThemedText kind="h1" style={{ color: colors.light.surface, marginTop: 6, fontSize: 30 }}>{duration}</ThemedText>
+          {since ? (
+            <View style={{ marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <ThemedText kind="label" style={{ color: 'rgba(255,255,255,0.8)', textTransform: 'uppercase' }}>seit</ThemedText>
+              <ThemedText style={{ color: colors.light.surface, fontWeight: '600' }}>{since}</ThemedText>
+            </View>
+          ) : null}
+        </View>
+        {hasNativeLottieSupport ? (
+          <LottieView
+            source={CLOCK_TIME_ANIMATION}
+            autoPlay
+            loop
+            style={{ width: 110, height: 110 }}
+            resizeMode="contain"
+            pointerEvents="none"
+          />
+        ) : (
+          <Image source={ICON_SMOKE_FREE} style={{ width: 90, height: 90, tintColor: colors.light.surface }} resizeMode="contain" />
+        )}
+      </View>
+    </View>
+  );
+}
 
 export default function Dashboard({ navigation }: any) {
   const profile = useStore((s) => s.profile);
@@ -20,6 +104,51 @@ export default function Dashboard({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const milestones = useStore((s) => s.milestones);
   const points = useStore((s) => s.points);
+  const appHydrated = useApp((s) => s.hydrated);
+  const appProfile = useApp((s) => s.profile);
+  const dayLogs = useApp((s) => s.dayLogs);
+  const restartOnboarding = useOnboardingStore((state) => state.reset);
+  const stats = useStats();
+  const { handleScroll } = useHeaderTransparency(6);
+
+  if (!appHydrated) {
+    return null;
+  }
+
+  if (!isProfileComplete(appProfile)) {
+    return (
+      <View style={{ flex: 1, padding: spacing.xl, justifyContent: 'center', alignItems: 'center', gap: spacing.l }}>
+        <ThemedText kind="h2" style={{ textAlign: 'center' }}>
+          Profil unvollständig – ergänze deine Angaben im Onboarding.
+        </ThemedText>
+        <PrimaryButton title="Onboarding starten" onPress={restartOnboarding} />
+      </View>
+    );
+  }
+
+  if (!stats) {
+    return null;
+  }
+  const lastConsumptionTimestamp = React.useMemo(() => {
+    if (appProfile?.lastConsumptionAt) return appProfile.lastConsumptionAt;
+    const entries = Object.values(dayLogs);
+    if (!entries.length) return null;
+    const consumedEntries = entries
+      .filter((log) => (log.consumedGrams ?? 0) > 0 || (log.consumedJoints ?? 0) > 0)
+      .map((log) => ({ log, ts: dateKeyToTimestamp(log.date) }))
+      .filter((item): item is { log: typeof entries[number]; ts: number } => item.ts != null)
+      .sort((a, b) => b.ts - a.ts);
+    return consumedEntries[0]?.ts ?? null;
+  }, [appProfile?.lastConsumptionAt, dayLogs]);
+
+  const fallbackStartIso = profile.startedAt
+    ? profile.startedAt
+    : appProfile
+    ? new Date(appProfile.startTimestamp).toISOString()
+    : new Date().toISOString();
+  const pauseStartIso = lastConsumptionTimestamp
+    ? new Date(lastConsumptionTimestamp).toISOString()
+    : fallbackStartIso;
 
   const currentStreak = React.useMemo(() => {
     let streak = 0;
@@ -31,17 +160,44 @@ export default function Dashboard({ navigation }: any) {
     return streak;
   }, [checkins]);
 
-  const milestoneProgress = (m: any) => (m.kind === 'streak' ? currentStreak : checkins.length);
-  const remainingFor = (m: any) => Math.max(0, (m.threshold ?? 0) - milestoneProgress(m));
+  const total = aggregate(profile, diary, 'all');
 
-  const recent = React.useMemo(() => (milestones || []).filter((m: any) => !!m.achievedAt).sort((a: any,b: any) => +new Date(b.achievedAt!) - +new Date(a.achievedAt!)), [milestones]);
-  const upcoming = React.useMemo(() => (milestones || []).filter((m: any) => !m.achievedAt).sort((a: any,b: any) => remainingFor(a) - remainingFor(b)), [milestones, checkins, currentStreak]);
+  const milestoneProgress = (m: MilestoneType) =>
+    m.kind === 'streak'
+      ? currentStreak
+      : m.kind === 'count'
+      ? checkins.length
+      : total.moneySaved;
+  const remainingFor = (m: MilestoneType) => Math.max(0, (m.threshold ?? 0) - milestoneProgress(m));
+  const recent = React.useMemo(
+    () =>
+      (milestones || [])
+        .filter((m: MilestoneType) => !!m.achievedAt)
+        .sort((a, b) => +new Date(b.achievedAt!) - +new Date(a.achievedAt!)),
+    [milestones]
+  );
+  const upcoming = React.useMemo(
+    () =>
+      (milestones || [])
+        .filter((m: MilestoneType) => !m.achievedAt)
+        .sort((a, b) => remainingFor(a) - remainingFor(b)),
+    [milestones, checkins, currentStreak]
+  );
 
   const list = [...recent.slice(0,2), ...upcoming.slice(0,3)].slice(0,3);
 
-  const last = lastUseAt(diary, profile.startedAt);
-  const duration = formatDurationSince(last);
-  const total = aggregate(profile, diary, 'all');
+  const daysSinceStart = React.useMemo(() => {
+    const recoveryStartTs = lastConsumptionTimestamp ?? appProfile?.startTimestamp ?? null;
+    if (!recoveryStartTs) return 0;
+    const now = Date.now();
+    return Math.max(0, Math.floor((now - recoveryStartTs) / (24 * 60 * 60 * 1000)));
+  }, [lastConsumptionTimestamp, appProfile?.startTimestamp]);
+
+  const duration = formatDurationSince(pauseStartIso);
+  const sinceDate = pauseStartIso ? new Date(pauseStartIso) : null;
+  const sinceLabel = sinceDate && !Number.isNaN(sinceDate.getTime())
+    ? `${sinceDate.getDate().toString().padStart(2, '0')}. ${MONTHS_DE[sinceDate.getMonth()]} ${sinceDate.getFullYear()}`
+    : null;
 
   const latest = checkins[0];
   const vals = {
@@ -52,162 +208,150 @@ export default function Dashboard({ navigation }: any) {
   const weakest = weakestMetric(vals).key;
 
   function missionTitle(key: 'craving' | 'withdrawal' | 'sleep') {
-    if (key === 'craving') return 'Urge Surfing: 3× 1 Minute';
-    if (key === 'withdrawal') return 'Körper beruhigen: 4-7-8 Atmen ×3';
-    return 'Schlafhygiene: Heute 30 Min früher ins Bett';
+    if (key === 'craving') return 'Suchtverlagerungen verstehen & bekämpfen';
+    if (key === 'withdrawal') return 'THC-Abbau im Körper: Was passiert wann?';
+    return 'Entzugssymptome leichter durchstehen';
   }
 
-  const heroHeight = 200;
-  const [heroError, setHeroError] = useState(false);
   return (
     <ScrollView
+      style={{ flex: 1, backgroundColor: '#FEFAE0' }}
       contentContainerStyle={{
         paddingHorizontal: spacing.xl as any,
-        paddingTop: (insets.top || 0) + (spacing.l as any),
-        paddingBottom: Math.max(spacing.l as any, insets.bottom || 0),
+        paddingTop: insets.top + HEADER_TOTAL_HEIGHT + (spacing.l as any),
+        paddingBottom: Math.max(spacing.xl as any, insets.bottom || 0),
         gap: spacing.l as any,
       }}
+      onScroll={handleScroll}
+      scrollEventThrottle={16}
     >
-      <View style={{ borderRadius: radius.xl, overflow: 'hidden', height: heroHeight }}>
-        {heroError ? (
-          <View style={{ flex: 1, backgroundColor: colors.light.surface, justifyContent: 'flex-end' }}>
-            {/* gradient overlay for readability */}
-            <View style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}>
-              <Svg width="100%" height="100%">
-                <Defs>
-                  <LinearGradient id="heroGrad" x1="0" y1="0" x2="0" y2="1">
-                    <Stop offset="0%" stopColor="#000" stopOpacity={0} />
-                    <Stop offset="70%" stopColor="#000" stopOpacity={0} />
-                    <Stop offset="100%" stopColor="#000" stopOpacity={0.15} />
-                  </LinearGradient>
-                </Defs>
-                <Rect x="0" y="0" width="100%" height="100%" fill="url(#heroGrad)" />
-              </Svg>
-            </View>
-            <View style={{ padding: 16 }}>
-              <ThemedText kind="label">Rauchfreie Zeit</ThemedText>
-              <ThemedText kind="h1" style={{ marginTop: 4 }}>{duration}</ThemedText>
-            </View>
-          </View>
-        ) : (
-          <ImageBackground
-            source={HeroImage}
-            resizeMode="cover"
-            style={{ flex: 1, justifyContent: 'flex-end' }}
-            onError={() => setHeroError(true)}
-          >
-            {/* gradient overlay for readability */}
-            <View style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}>
-              <Svg width="100%" height="100%">
-                <Defs>
-                  <LinearGradient id="heroGrad" x1="0" y1="0" x2="0" y2="1">
-                    <Stop offset="0%" stopColor="#000" stopOpacity={0} />
-                    <Stop offset="70%" stopColor="#000" stopOpacity={0} />
-                    <Stop offset="100%" stopColor="#000" stopOpacity={0.35} />
-                  </LinearGradient>
-                </Defs>
-                <Rect x="0" y="0" width="100%" height="100%" fill="url(#heroGrad)" />
-              </Svg>
-            </View>
-            <View style={{ padding: 16 }}>
-              <ThemedText kind="label" style={{ color: 'white' }}>Rauchfreie Zeit</ThemedText>
-              <ThemedText kind="h1" style={{ color: 'white', marginTop: 4 }}>{duration}</ThemedText>
-            </View>
-          </ImageBackground>
-        )}
+      <SmokeFreeBadge duration={duration} since={sinceLabel} />
+
+      <LiveKpiGrid />
+
+      <View style={{ width: '100%', gap: spacing.s as any }}>
+        <ThemedText kind="label" style={{ color: colors.light.textMuted }}>
+          Erholung im Verlauf
+        </ThemedText>
+        <View style={{ marginHorizontal: -(spacing.xl as any) }}>
+          <RecoveryTimeline sinceStartDays={daysSinceStart} />
+        </View>
       </View>
 
-      {/* Drei evidenzbasierte Kreise */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-        <ProgressDial value={vals.craving} label="Verlangen" />
-        <ProgressDial value={vals.withdrawal} label="Entzug" />
-        <ProgressDial value={vals.sleep} label="Schlaf" />
-      </View>
-
-
-      <Card>
+      <Card
+        style={{
+          borderWidth: 2,
+          borderColor: colors.light.primary,
+        }}
+      >
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <ThemedText kind="label" muted>Meilensteine</ThemedText>
+          <ThemedText kind="h2" style={{ color: colors.light.primary }}>Meilensteine</ThemedText>
           <PrimaryButton title="Alle anzeigen" onPress={() => navigation.getParent()?.navigate('Meilensteine')} />
         </View>
-        <View style={{ marginTop: 8, gap: 10 }}>
+        <View style={{ marginTop: 8, gap: spacing.m as any }}>
           {list.length === 0 ? (
             <ThemedText muted>Keine Meilensteine vorhanden.</ThemedText>
           ) : (
-            list.map((m: any) => (
-              <View key={m.id} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <ThemedText kind="h2">{m.icon ?? '🏅'}</ThemedText>
-                  <View>
-                    <ThemedText>{m.title}</ThemedText>
-                    <ThemedText muted>{m.kind === 'streak' ? `Ziel: ${m.threshold} Tage` : `Ziel: ${m.threshold} Check-ins`}</ThemedText>
+            list.map((m: MilestoneType) => (
+              <FrostedSurface
+                key={m.id}
+                borderRadius={radius.l}
+                intensity={80}
+                fallbackColor="rgba(255,255,255,0.04)"
+                overlayColor="rgba(255,255,255,0.22)"
+                style={{
+                  borderWidth: 2,
+                  borderColor: colors.light.primary,
+                  paddingVertical: spacing.m as any,
+                  paddingHorizontal: spacing.l as any,
+                  minHeight: 92,
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flexShrink: 1 }}>
+                    {resolveMilestoneIcon(m.icon) ? (
+                      <Image source={resolveMilestoneIcon(m.icon)} style={{ width: 38, height: 38, flexShrink: 0 }} resizeMode="contain" />
+                    ) : (
+                      <ThemedText kind="h2">⭐</ThemedText>
+                    )}
+                    <View style={{ flexShrink: 1 }}>
+                      <ThemedText>{m.title}</ThemedText>
+                      {m.description ? <ThemedText muted>{m.description}</ThemedText> : null}
+                      <ThemedText muted>
+                        {m.kind === 'streak'
+                          ? `Ziel: ${formatDays(m.threshold || 0)}`
+                          : m.kind === 'count'
+                          ? `Ziel: ${m.threshold} Tracken`
+                          : `Ziel: ${m.threshold.toLocaleString('de-DE')} €`}
+                      </ThemedText>
+                    </View>
                   </View>
+                  {m.achievedAt ? (
+                    <View style={{ width: 64, alignItems: 'center' }}>
+                      <View style={{ backgroundColor: '#D4AF37', paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.pill, minWidth: 52, alignItems: 'center' }}>
+                        <ThemedText kind="label" style={{ color: '#1F2937' }}>🏆 {m.points}</ThemedText>
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={{ width: 76, alignItems: 'center', justifyContent: 'center' }}>
+                      <ProgressDial
+                        value={Math.max(0, Math.min(1, milestoneProgress(m) / (m.threshold || 1)))}
+                        size={72}
+                        stroke={9}
+                        color={colors.light.primary}
+                        track={colors.light.border}
+                        hideLabel
+                        percentSize={18}
+                        percentTextStyle={{ color: colors.light.primary }}
+                      />
+                    </View>
+                  )}
                 </View>
-                {m.achievedAt ? (
-                  <View style={{ backgroundColor: '#D4AF37', paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.pill }}>
-                    <ThemedText kind=\"label\" style={{ color: '#1F2937' }}>+{m.points}</ThemedText>
-                  </View>
-                ) : (
-                  <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-                    <ProgressDial
-                      value={Math.max(0, Math.min(1, ((m.kind==='streak'?currentStreak:(m.kind==='count'?checkins.length:total.moneySaved)) / (m.threshold || 1))))}
-                      label={
-och }
-                      size={56}
-                      stroke={6}
-                      color={colors.light.primary}
-                      track={colors.light.border}
-                    />
-                  </View>
-                )}
-              </View>
+              </FrostedSurface>
             ))
           )}
         </View>
       </Card>
- 
-      <Card>
-        <ThemedText kind="label" muted>
-          Gespartes Geld
-        </ThemedText>
-        <ThemedText kind="h1" style={{ marginTop: 6 }}>
-          {`${total.moneySaved.toFixed(2)} ${profile.currency}`}
-        </ThemedText>
-      </Card>
 
-      {/* Daily Check-in CTA (pastel color, larger, placed below) */}
+      {/* Daily Tracken CTA (pastel color, larger, placed below) */}
       <Card
         style={{
-          backgroundColor: colors.light.primaryMuted,
-          borderColor: 'transparent',
+          borderWidth: 2,
+          borderColor: colors.light.primary,
           padding: (spacing.xl as any),
           minHeight: 140,
           justifyContent: 'center',
+          gap: spacing.m as any,
         }}
       >
-        <ThemedText kind="label" muted>
-          Daily Check-in
+        <ThemedText kind="label" style={{ color: colors.light.primary }}>
+          Daily Tracken
         </ThemedText>
-        <ThemedText kind="h2" style={{ marginTop: 8 }}>
+        <ThemedText kind="h2" style={{ color: colors.light.text }}>
           Wie geht's dir heute?
         </ThemedText>
-        <View style={{ height: 12 }} />
         <PrimaryButton
-          title="Daily Check beginnen"
-          onPress={() => navigation.getParent()?.navigate('Check-in')}
+          title="Tracken starten"
+          onPress={() => navigation.getParent()?.navigate('Tracken')}
         />
       </Card>
 
       {/* Mini-Spiel Link */}
-      <Card>
-        <ThemedText kind="label" muted>
+      <Card
+        style={{
+          borderWidth: 2,
+          borderColor: colors.light.primary,
+          gap: spacing.m as any,
+        }}
+      >
+        <ThemedText kind="label" style={{ color: colors.light.primary }}>
           Mini-Spiel
         </ThemedText>
-        <ThemedText kind="h2" style={{ marginTop: 6 }}>
-          Craving Tap
-        </ThemedText>
-        <View style={{ height: 12 }} />
-        <PrimaryButton title="Jetzt spielen" onPress={() => navigation.navigate('Game')} />
+        <ThemedText kind="h2">Craving Tap</ThemedText>
+        <PrimaryButton
+          title="Jetzt spielen"
+          onPress={() => navigation.getParent()?.getParent()?.navigate('MinigamesHub')}
+        />
       </Card>
 
       {/* CTA-Band basierend auf schwächster Metrik */}
@@ -220,19 +364,14 @@ och }
         }}
       >
         <ThemedText kind="h2" style={{ color: 'white' }}>
-          Die Mission für heute
+          Lesetipp für heute
         </ThemedText>
         <ThemedText style={{ color: 'white' }}>{missionTitle(weakest)}</ThemedText>
         <PrimaryButton
-          title="Erkunden"
-          onPress={() => navigation.getParent()?.navigate('Missionen', { focus: weakest })}
+          title="Zum Wissen"
+          onPress={() => navigation.getParent()?.navigate('Wissen', { focus: weakest })}
         />
       </View>
     </ScrollView>
   );
 }
-
-
-
-
-

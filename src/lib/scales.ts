@@ -98,7 +98,7 @@ export function who5Percent(who5_0_25?: number): number | undefined {
 
 
 export function sortMetricsWeakToStrong(checkin: Checkin): { key: MetricKey; percent: number }[] {
-  const list = [
+  const list: { key: MetricKey; percent: number }[] = [
     { key: 'craving', percent: normCravingPercent(checkin.mcq0_10) },
     { key: 'withdrawal', percent: normWithdrawalPercent(checkin.cws0_50) },
     { key: 'wellbeing', percent: normWellbeingPercent(checkin.who5_0_25) },

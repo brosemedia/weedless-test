@@ -138,7 +138,7 @@ export type Props = {
   style?: any;
 };
 
-export default function DailyCheckinForm({ currentStats, initial, options, onSubmit, onCancel, style }: Props): JSX.Element {
+export default function DailyCheckinForm({ currentStats, initial, options, onSubmit, onCancel, style }: Props): React.ReactElement {
   const nowISO = useMemo(() => new Date().toISOString(), []);
   const [started, setStarted] = useState<boolean>(false);
   const [usedToday, setUsedToday] = useState<boolean>(initial?.usedToday ?? false);
@@ -227,7 +227,7 @@ export default function DailyCheckinForm({ currentStats, initial, options, onSub
     return (
       <View style={[styles.wrap, style]}>
         <TouchableOpacity style={[styles.button, { paddingVertical: 16 }]} onPress={() => setStarted(true)} accessibilityRole="button">
-          <Text style={styles.buttonLabel}>Daily Check beginnen</Text>
+          <Text style={styles.buttonLabel}>Tracken starten</Text>
         </TouchableOpacity>
       </View>
     );
@@ -235,7 +235,7 @@ export default function DailyCheckinForm({ currentStats, initial, options, onSub
 
   return (
     <View style={[styles.wrap, style]}>
-      <Text style={styles.h1}>Täglicher Check-in</Text>
+      <Text style={styles.h1}>Tägliches Tracken</Text>
 
       {/* Modus-Umschalter */}
       <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -295,8 +295,8 @@ export default function DailyCheckinForm({ currentStats, initial, options, onSub
       {/* Gemeinsame Felder */}
       <View style={styles.rowInputs}>
         <View style={styles.inputCol}>
-          <Text style={styles.label}>Craving (0-10)</Text>
-          <TextInput accessibilityLabel="Craving" keyboardType={Platform.select({ ios: 'number-pad', android: 'numeric' })} value={cravings} onChangeText={setCravings} placeholder="0" style={styles.input} maxLength={2} />
+          <Text style={styles.label}>Suchtdruck (0-10)</Text>
+          <TextInput accessibilityLabel="Suchtdruck" keyboardType={Platform.select({ ios: 'number-pad', android: 'numeric' })} value={cravings} onChangeText={setCravings} placeholder="0" style={styles.input} maxLength={2} />
           {errors.cravings ? <Text style={styles.error}>{errors.cravings}</Text> : null}
         </View>
         <View style={styles.inputCol}>
@@ -354,7 +354,7 @@ export default function DailyCheckinForm({ currentStats, initial, options, onSub
 
       <View style={{ flexDirection: 'row', gap: 8 }}>
         <TouchableOpacity style={[styles.button, { flex: 1 }]} onPress={submit} accessibilityRole="button">
-          <Text style={styles.buttonLabel}>Check-in speichern</Text>
+          <Text style={styles.buttonLabel}>Tracken speichern</Text>
         </TouchableOpacity>
         {onCancel ? (
           <TouchableOpacity style={[styles.buttonGhost, { flex: 1 }]} onPress={onCancel} accessibilityRole="button">
@@ -369,38 +369,62 @@ export default function DailyCheckinForm({ currentStats, initial, options, onSub
 // Styles - schlank und neutral
 const styles = StyleSheet.create({
   wrap: { padding: 16, gap: 12 },
-  h1: { fontSize: 20, fontWeight: '700', color: '#0F172A', marginBottom: 4 },
+  h1: { fontSize: 20, fontWeight: '700', fontFamily: 'Inter-Bold', color: '#4A2A16', marginBottom: 4 },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   inputBlock: { gap: 6 },
   rowInputs: { flexDirection: 'row', gap: 8 },
   inputCol: { flex: 1 },
-  label: { color: '#334155', fontSize: 14 },
+  label: { color: '#8A5D3E', fontSize: 14, fontFamily: 'Inter-SemiBold' },
   input: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#CBD5E1',
+    borderColor: '#E4BB90',
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: Platform.select({ ios: 10, android: 8 }),
-    color: '#0F172A',
-    backgroundColor: 'rgba(255,255,255,0.85)',
+    color: '#4A2A16',
+    fontFamily: 'Inter-Regular',
+    backgroundColor: 'rgba(253,241,226,0.9)',
   },
   multiline: { minHeight: 72, textAlignVertical: 'top' },
-  preview: { padding: 12, borderRadius: 10, backgroundColor: 'rgba(15,23,42,0.04)', gap: 4 },
-  previewTitle: { color: '#0F172A', fontWeight: '700' },
-  previewText: { color: '#334155', fontSize: 13 },
-  error: { color: '#DC2626', fontSize: 12, marginTop: 4 },
-  button: { marginTop: 8, backgroundColor: '#166534', paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
-  buttonLabel: { color: 'white', fontWeight: '700' },
-  buttonGhost: { marginTop: 8, backgroundColor: 'rgba(15,23,42,0.06)', paddingVertical: 12, borderRadius: 10, alignItems: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: '#94A3B8' },
-  buttonGhostLabel: { color: '#0F172A', fontWeight: '700' },
-  modeBtn: { flex: 1, borderRadius: 8, paddingVertical: 10, alignItems: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: '#CBD5E1', backgroundColor: 'rgba(255,255,255,0.7)' },
-  modeBtnActive: { backgroundColor: '#FDE68A', borderColor: '#F59E0B' },
-  modeBtnLabel: { color: '#334155', fontWeight: '600' },
-  modeBtnLabelActive: { color: '#1F2937' },
-  chip: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, borderWidth: StyleSheet.hairlineWidth, borderColor: '#CBD5E1', backgroundColor: 'rgba(255,255,255,0.7)' },
-  chipActive: { backgroundColor: '#DCFCE7', borderColor: '#22C55E' },
-  chipLabel: { color: '#334155' },
-  chipLabelActive: { color: '#065F46', fontWeight: '700' },
+  preview: { padding: 12, borderRadius: 10, backgroundColor: 'rgba(74,42,22,0.06)', gap: 4 },
+  previewTitle: { color: '#4A2A16', fontWeight: '700', fontFamily: 'Inter-SemiBold' },
+  previewText: { color: '#8A5D3E', fontSize: 13, fontFamily: 'Inter-Regular' },
+  error: { color: '#C85B3A', fontSize: 12, marginTop: 4, fontFamily: 'Inter-SemiBold' },
+  button: { marginTop: 8, backgroundColor: '#C86A3A', paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
+  buttonLabel: { color: 'white', fontWeight: '700', fontFamily: 'Inter-SemiBold' },
+  buttonGhost: {
+    marginTop: 8,
+    backgroundColor: 'rgba(74,42,22,0.08)',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#D6A477',
+  },
+  buttonGhostLabel: { color: '#4A2A16', fontWeight: '700', fontFamily: 'Inter-SemiBold' },
+  modeBtn: {
+    flex: 1,
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E4BB90',
+    backgroundColor: 'rgba(253,241,226,0.7)',
+  },
+  modeBtnActive: { backgroundColor: '#F7C99E', borderColor: '#E08C55' },
+  modeBtnLabel: { color: '#8A5D3E', fontWeight: '600', fontFamily: 'Inter-SemiBold' },
+  modeBtnLabelActive: { color: '#4A2A16', fontFamily: 'Inter-SemiBold' },
+  chip: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E4BB90',
+    backgroundColor: 'rgba(253,241,226,0.7)',
+  },
+  chipActive: { backgroundColor: '#F9D7B4', borderColor: '#E08C55' },
+  chipLabel: { color: '#8A5D3E', fontFamily: 'Inter-Regular' },
+  chipLabelActive: { color: '#4A2A16', fontWeight: '700', fontFamily: 'Inter-SemiBold' },
 });
 
 /*
@@ -432,7 +456,7 @@ function Screen() {
       currentStats={stats}
       options={{ pricePerGramEUR: 10, baselineDailyUseGrams: 0.5 }}
       onSubmit={(checkin: DailyCheckinData, patch: DashboardPatch) => {
-        // 1) Check-in speichern
+        // 1) Tracken speichern
         // 2) Dashboard-State mit 'patch' patchen
         console.log('CHECKIN', checkin, patch);
         setStats((prev) => ({ ...prev, ...patch }));
