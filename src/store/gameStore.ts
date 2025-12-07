@@ -34,7 +34,7 @@ export const useGameStore = create<GameStore>()(
       clearGameResults: () => set({ results: [] }),
     }),
     {
-      name: 'weedless-game-store',
+      name: 'hazeless-game-store',
       storage: createJSONStorage(() => AsyncStorage),
       version: 1,
       partialize: (state) => ({ results: state.results }),

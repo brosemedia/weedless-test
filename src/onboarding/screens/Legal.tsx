@@ -4,7 +4,7 @@ import { StepScreen } from '../components/StepScreen';
 import { Card } from '../components/Card';
 import { Checkbox } from '../components/Checkbox';
 import { useOnboardingStore } from '../store';
-import { strings } from '../i18n/de';
+import { useStrings } from '../i18n/useStrings';
 import { useOnboardingStep } from '../hooks';
 import { onboardingSchemas } from '../utils/validators';
 import { colors, spacing, typography } from '../theme';
@@ -13,6 +13,7 @@ export const LegalScreen: React.FC = () => {
   const { stepNumber, totalSteps, goNext, goBack } = useOnboardingStep('Legal');
   const legal = useOnboardingStore((state) => state.profile.legal);
   const mergeProfile = useOnboardingStore((state) => state.mergeProfile);
+  const strings = useStrings();
 
   const update = (patch: Partial<typeof legal>) => {
     mergeProfile({

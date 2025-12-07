@@ -1,5 +1,6 @@
 import React from 'react';
-import { Pressable, Text, StyleSheet } from 'react-native';
+import { Pressable, Text, StyleSheet, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, radii, spacing, typography } from '../theme';
 
 interface ChipProps {
@@ -7,9 +8,10 @@ interface ChipProps {
   active?: boolean;
   onPress?: () => void;
   disabled?: boolean;
+  icon?: keyof typeof Ionicons.glyphMap;
 }
 
-export const Chip: React.FC<ChipProps> = ({ label, active, onPress, disabled }) => (
+export const Chip: React.FC<ChipProps> = ({ label, active, onPress, disabled, icon }) => (
   <Pressable
     onPress={onPress}
     disabled={disabled}
@@ -20,7 +22,17 @@ export const Chip: React.FC<ChipProps> = ({ label, active, onPress, disabled }) 
       pressed && !disabled && styles.pressed,
     ]}
   >
-    <Text style={[styles.label, active && styles.labelActive]}>{label}</Text>
+    <View style={styles.content}>
+      {icon && (
+        <Ionicons
+          name={icon}
+          size={20}
+          color={active ? colors.primary : colors.text}
+          style={styles.icon}
+        />
+      )}
+      <Text style={[styles.label, active && styles.labelActive]}>{label}</Text>
+    </View>
   </Pressable>
 );
 
@@ -44,6 +56,13 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.85,
+  },
+  content: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  icon: {
+    marginRight: spacing.xs,
   },
   label: {
     ...typography.body,

@@ -4,7 +4,7 @@ import { StepScreen } from '../components/StepScreen';
 import { Card } from '../components/Card';
 import { Chip } from '../components/Chip';
 import { useOnboardingStore } from '../store';
-import { strings } from '../i18n/de';
+import { useStrings } from '../i18n/useStrings';
 import { useOnboardingStep } from '../hooks';
 import { onboardingSchemas } from '../utils/validators';
 import { colors, spacing, typography } from '../theme';
@@ -13,6 +13,7 @@ export const MotivationScreen: React.FC = () => {
   const { stepNumber, totalSteps, goNext, goBack } = useOnboardingStep('Motivation');
   const profile = useOnboardingStore((state) => state.profile);
   const mergeProfile = useOnboardingStore((state) => state.mergeProfile);
+  const strings = useStrings();
 
   const toggleMotivation = (value: string) => {
     const exists = profile.motivations.includes(value);
@@ -22,6 +23,8 @@ export const MotivationScreen: React.FC = () => {
       mergeProfile({ motivations: [...profile.motivations, value] });
     }
   };
+
+  const motivationOptions = strings.motivation.options;
 
   const updateCommitment = (text: string) => {
     mergeProfile({
@@ -49,14 +52,18 @@ export const MotivationScreen: React.FC = () => {
     >
       <Card>
         <View style={styles.chipRow}>
-          {strings.motivation.options.map((option) => (
-            <Chip
-              key={option}
-              label={option}
-              active={profile.motivations.includes(option)}
-              onPress={() => toggleMotivation(option)}
-            />
-          ))}
+          {motivationOptions.map((option) => {
+            const iconName = strings.motivation.icons[option.value as keyof typeof strings.motivation.icons];
+            return (
+              <Chip
+                key={option.value}
+                label={option.label}
+                active={profile.motivations.includes(option.value)}
+                onPress={() => toggleMotivation(option.value)}
+                icon={iconName}
+              />
+            );
+          })}
         </View>
         <Text style={styles.label}>{strings.motivation.commitment}</Text>
         <TextInput

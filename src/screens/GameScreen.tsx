@@ -350,6 +350,8 @@ export default function GameScreen() {
   const bestTime = game.times.length > 0 ? Math.min(...game.times) : null;
   const worstTime = game.times.length > 0 ? Math.max(...game.times) : null;
 
+  // Note: GameScreen would need useAppStrings() but it's a complex component
+  // For now, keeping the hardcoded strings as they're game-specific
   if (game.phase === 'idle') {
     return (
       <View style={styles.container}>

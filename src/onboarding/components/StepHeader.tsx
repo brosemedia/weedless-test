@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { colors, spacing, typography } from '../theme';
-import { ProgressBar } from './ProgressBar';
+import { useTheme } from '../../../src/theme/useTheme';
+import { spacing, typography } from '../../../src/design/tokens';
 
 interface Props {
   title: string;
@@ -11,32 +11,42 @@ interface Props {
 }
 
 export const StepHeader: React.FC<Props> = ({ title, subtitle, step, total }) => {
-  const progress = total > 0 ? step / total : 0;
+  const { theme } = useTheme();
+  const colors = theme.colors;
+
   return (
     <View style={styles.container}>
-      <Text style={styles.counter}>{`${step} / ${total}`}</Text>
-      <Text style={styles.title}>{title}</Text>
-      {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
-      <ProgressBar progress={progress} />
+      <Text style={[styles.counter, { color: colors.textMuted }]}>
+        {step} / {total}
+      </Text>
+      <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
+      {subtitle ? (
+        <Text style={[styles.subtitle, { color: colors.textMuted }]}>{subtitle}</Text>
+      ) : null}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.l,
   },
   counter: {
-    ...typography.subheading,
-    color: colors.muted,
+    ...typography.variants.label,
     marginBottom: spacing.xs,
+    fontSize: 12,
+    letterSpacing: 0.5,
   },
   title: {
-    ...typography.heading,
+    ...typography.variants.h1,
     marginBottom: spacing.xs,
+    fontSize: 28,
+    lineHeight: 36,
   },
   subtitle: {
-    ...typography.subheading,
-    marginBottom: spacing.md,
+    ...typography.variants.body,
+    fontSize: 15,
+    lineHeight: 22,
+    marginTop: spacing.xs,
   },
 });

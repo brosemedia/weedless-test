@@ -4,7 +4,7 @@ import { StepScreen } from '../components/StepScreen';
 import { Card } from '../components/Card';
 import { Checkbox } from '../components/Checkbox';
 import { useOnboardingStore } from '../store';
-import { strings } from '../i18n/de';
+import { useStrings } from '../i18n/useStrings';
 import { useOnboardingStep } from '../hooks';
 import { onboardingSchemas } from '../utils/validators';
 import { colors, spacing, typography } from '../theme';
@@ -14,6 +14,7 @@ export const ConnectionsScreen: React.FC = () => {
   const { stepNumber, totalSteps, goNext, goBack } = useOnboardingStep('Connections');
   const connections = useOnboardingStore((state) => state.profile.connections);
   const mergeProfile = useOnboardingStore((state) => state.mergeProfile);
+  const strings = useStrings();
   const [tracked, setTracked] = useState(false);
 
   const update = (key: keyof typeof connections, value: boolean) => {

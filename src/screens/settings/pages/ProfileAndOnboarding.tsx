@@ -154,7 +154,7 @@ export default function ProfileAndOnboarding() {
               />
               <SelectChips
                 label="Währung"
-                helper="Nutzt Weedless für Einsparungen."
+                helper="Nutzt Hazeless für Einsparungen."
                 options={CURRENCY_OPTIONS}
                 value={form!.currency}
                 onSelect={(value) => handleSelect('currency', value)}

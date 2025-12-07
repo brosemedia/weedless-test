@@ -10,6 +10,7 @@ import { useApp } from '../../store/app';
 import { TASK_XP } from '../../lib/tasks';
 import { useHeaderTransparency } from '../../hooks/useHeaderTransparency';
 import { useUiStore } from '../../store/ui';
+import { useQuickActionsVisibility } from '../../hooks/useQuickActionsVisibility';
 
 type Props = NativeStackScreenProps<MinigameStackParamList, 'TapResults'>;
 
@@ -53,6 +54,7 @@ export default function TapResults({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const headerAccessoryHeight = useUiStore((s) => s.headerAccessoryHeight);
   useHeaderTransparency();
+  useQuickActionsVisibility('tap-results', true);
   const { times, hits, misses, attempts, round } = route.params;
   const confettiRef = useRef<ConfettiCannon | null>(null);
   const upsertDayLog = useApp((s) => s.upsertDayLog);

@@ -14,12 +14,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import type { NavigationContainerRefWithCurrent } from '@react-navigation/native';
 import { colors, radius, spacing, shadows } from '../design/tokens';
+import { useTheme } from '../theme/useTheme';
 import { useApp } from '../store/app';
 import { useUiStore } from '../store/ui';
 import type { DayLog } from '../types/profile';
 import MultiStepDailyCheckin, { type DailyCheckinData } from './MultiStepDailyCheckin';
 import { TASK_XP } from '../lib/tasks';
 import ConsumptionFormFields from './ConsumptionFormFields';
+import { haptics } from '../services/haptics';
 import {
   createConsumptionEntry,
   createEmptyConsumptionForm,
@@ -68,23 +70,25 @@ function Field({
   placeholder?: string;
   onChangeText: (text: string) => void;
 }) {
+  const { mode, theme } = useTheme();
+  const isDark = mode === 'dark';
   return (
     <View style={{ width: '100%' }}>
-      <Text style={{ fontSize: 13, fontWeight: '600', color: colors.light.navy, marginBottom: 6 }}>{label}</Text>
+      <Text style={{ fontSize: 13, fontWeight: '600', color: theme.colors.text, marginBottom: 6 }}>{label}</Text>
       <TextInput
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
         keyboardType="decimal-pad"
-        placeholderTextColor="rgba(74,42,22,0.4)"
+        placeholderTextColor={isDark ? 'rgba(255,255,255,0.4)' : 'rgba(74,42,22,0.4)'}
         style={{
           borderRadius: radius.l,
           borderWidth: 1,
-          borderColor: colors.light.border,
+          borderColor: theme.colors.border,
           paddingHorizontal: spacing.l,
           paddingVertical: spacing.m,
-          backgroundColor: '#fff7ef',
-          color: colors.light.text,
+          backgroundColor: isDark ? theme.colors.surfaceMuted : '#fff7ef',
+          color: theme.colors.text,
           fontSize: 16,
         }}
       />
@@ -93,6 +97,8 @@ function Field({
 }
 
 function FormHeader({ title, onClose }: { title: string; onClose: () => void }) {
+  const { mode, theme } = useTheme();
+  const isDark = mode === 'dark';
   return (
     <View
       style={{
@@ -102,12 +108,20 @@ function FormHeader({ title, onClose }: { title: string; onClose: () => void }) 
         paddingHorizontal: spacing.l,
         paddingVertical: spacing.m,
         borderBottomWidth: 1,
-        borderColor: 'rgba(74,42,22,0.08)',
+        borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(74,42,22,0.08)',
       }}
     >
-      <Text style={{ fontSize: 18, fontWeight: '700', color: colors.light.text }}>{title}</Text>
-      <Pressable accessibilityRole='button' accessibilityLabel="Schließen" onPress={onClose} hitSlop={8}>
-        <Text style={{ fontSize: 16, fontWeight: '600', color: colors.light.primary }}>Schließen</Text>
+      <Text style={{ fontSize: 18, fontWeight: '700', color: theme.colors.text }}>{title}</Text>
+      <Pressable 
+        accessibilityRole='button' 
+        accessibilityLabel="Schließen" 
+        onPress={() => {
+          haptics.trigger('general', 'selection');
+          onClose();
+        }} 
+        hitSlop={8}
+      >
+        <Text style={{ fontSize: 16, fontWeight: '600', color: theme.colors.primary }}>Schließen</Text>
       </Pressable>
     </View>
   );
@@ -121,6 +135,9 @@ type SheetProps = {
 };
 
 function ActionSheet({ visible, bottomInset, onClose, onSelect }: SheetProps) {
+  const { mode, theme } = useTheme();
+  const isDark = mode === 'dark';
+  
   if (!visible) return null;
   return (
     <Modal animationType="fade" transparent visible onRequestClose={onClose}>
@@ -131,7 +148,7 @@ function ActionSheet({ visible, bottomInset, onClose, onSelect }: SheetProps) {
           left: spacing.l,
           right: spacing.l,
           bottom: bottomInset + 90,
-          backgroundColor: '#fff8ef',
+          backgroundColor: isDark ? theme.colors.surface : '#fff8ef',
           borderRadius: radius.xl,
           padding: spacing.l,
           ...shadows.md,
@@ -145,11 +162,14 @@ function ActionSheet({ visible, bottomInset, onClose, onSelect }: SheetProps) {
             marginBottom: spacing.s,
           }}
         >
-          <Text style={{ fontSize: 16, fontWeight: '700', color: colors.light.text }}>Schnelle Aktion</Text>
+          <Text style={{ fontSize: 16, fontWeight: '700', color: theme.colors.text }}>Schnelle Aktion</Text>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Menü schließen"
-            onPress={onClose}
+            onPress={() => {
+              haptics.trigger('general', 'selection');
+              onClose();
+            }}
             hitSlop={8}
             style={({ pressed }) => [
               {
@@ -159,16 +179,19 @@ function ActionSheet({ visible, bottomInset, onClose, onSelect }: SheetProps) {
                 alignItems: 'center',
                 justifyContent: 'center',
               },
-              pressed && { backgroundColor: 'rgba(200,106,58,0.12)' },
+              pressed && { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(200,106,58,0.12)' },
             ]}
           >
-            <Ionicons name="close" size={20} color={colors.light.text} />
+            <Ionicons name="close" size={20} color={theme.colors.text} />
           </Pressable>
         </View>
         {ACTIONS.map((action) => (
           <Pressable
             key={action.key}
-            onPress={() => onSelect(action.key)}
+            onPress={() => {
+              haptics.trigger('general', 'selection');
+              onSelect(action.key);
+            }}
             style={({ pressed }) => [
               {
                 flexDirection: 'row',
@@ -176,7 +199,7 @@ function ActionSheet({ visible, bottomInset, onClose, onSelect }: SheetProps) {
                 paddingVertical: spacing.s,
                 borderRadius: radius.l,
               },
-              pressed && { backgroundColor: 'rgba(200,106,58,0.08)' },
+              pressed && { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(200,106,58,0.08)' },
             ]}
           >
             <View
@@ -184,21 +207,21 @@ function ActionSheet({ visible, bottomInset, onClose, onSelect }: SheetProps) {
                 width: 40,
                 height: 40,
                 borderRadius: radius.pill,
-                backgroundColor: colors.light.primary,
+                backgroundColor: theme.colors.primary,
                 alignItems: 'center',
                 justifyContent: 'center',
                 marginRight: spacing.m,
               }}
             >
-              <Ionicons name={action.icon} size={22} color={colors.light.surface} />
+              <Ionicons name={action.icon} size={22} color={theme.colors.surface} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 15, fontWeight: '600', color: colors.light.text }}>
+              <Text style={{ fontSize: 15, fontWeight: '600', color: theme.colors.text }}>
                 {action.label}
               </Text>
-              <Text style={{ fontSize: 13, color: colors.light.textMuted }}>{action.description}</Text>
+              <Text style={{ fontSize: 13, color: theme.colors.textMuted }}>{action.description}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.light.textMuted} />
+            <Ionicons name="chevron-forward" size={20} color={theme.colors.textMuted} />
           </Pressable>
         ))}
       </View>
@@ -233,9 +256,10 @@ function ConsumptionModal({ visible, onClose, onSubmit, suggestedAmount }: Consu
     }
   };
 
+  const { theme } = useTheme();
   return (
     <Modal animationType="slide" visible onRequestClose={onClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.light.surface }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }}>
         <FormHeader title="Konsum hinzufügen" onClose={onClose} />
         <KeyboardAvoidingView
           style={{ flex: 1 }}
@@ -252,17 +276,20 @@ function ConsumptionModal({ visible, onClose, onSubmit, suggestedAmount }: Consu
                 }))
               }
             />
-            <Text style={{ fontSize: 13, color: colors.light.textMuted }}>
-              Die Angaben wirken sich auf „Geld gespart“, Konsumstatistiken und deine Fortschrittskarten aus.
+            <Text style={{ fontSize: 13, color: theme.colors.textMuted }}>
+              Die Angaben wirken sich auf „Geld gespart", Konsumstatistiken und deine Fortschrittskarten aus.
             </Text>
             {error ? (
-              <Text style={{ color: colors.light.danger, fontWeight: '600' }}>{error}</Text>
+              <Text style={{ color: theme.colors.danger, fontWeight: '600' }}>{error}</Text>
             ) : null}
             <Pressable
-              onPress={handleSubmit}
+              onPress={() => {
+                haptics.trigger('general', 'success');
+                handleSubmit();
+              }}
               style={({ pressed }) => [
                 {
-                  backgroundColor: colors.light.primary,
+                  backgroundColor: theme.colors.primary,
                   paddingVertical: spacing.m,
                   borderRadius: radius.pill,
                   alignItems: 'center',
@@ -270,7 +297,7 @@ function ConsumptionModal({ visible, onClose, onSubmit, suggestedAmount }: Consu
                 pressed && { opacity: 0.9 },
               ]}
             >
-              <Text style={{ color: colors.light.surface, fontSize: 16, fontWeight: '700' }}>
+              <Text style={{ color: theme.colors.surface, fontSize: 16, fontWeight: '700' }}>
                 Konsum speichern
               </Text>
             </Pressable>
@@ -307,9 +334,10 @@ function PurchaseModal({ visible, onClose, onSubmit }: PurchaseModalProps) {
     }
   };
 
+  const { theme } = useTheme();
   return (
     <Modal animationType="slide" visible onRequestClose={onClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.light.surface }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }}>
         <FormHeader title="Einkauf protokollieren" onClose={onClose} />
         <KeyboardAvoidingView
           style={{ flex: 1 }}
@@ -322,17 +350,20 @@ function PurchaseModal({ visible, onClose, onSubmit }: PurchaseModalProps) {
               onChangeText={setAmount}
               placeholder="z. B. 25"
             />
-            <Text style={{ fontSize: 13, color: colors.light.textMuted }}>
-              Ausgaben werden von „Geld gespart“ abgezogen – so bleiben deine Ersparnisse realistisch.
+            <Text style={{ fontSize: 13, color: theme.colors.textMuted }}>
+              Ausgaben werden von „Geld gespart" abgezogen – so bleiben deine Ersparnisse realistisch.
             </Text>
             {error ? (
-              <Text style={{ color: colors.light.danger, fontWeight: '600' }}>{error}</Text>
+              <Text style={{ color: theme.colors.danger, fontWeight: '600' }}>{error}</Text>
             ) : null}
             <Pressable
-              onPress={handleSubmit}
+              onPress={() => {
+                haptics.trigger('general', 'success');
+                handleSubmit();
+              }}
               style={({ pressed }) => [
                 {
-                  backgroundColor: colors.light.primary,
+                  backgroundColor: theme.colors.primary,
                   paddingVertical: spacing.m,
                   borderRadius: radius.pill,
                   alignItems: 'center',
@@ -340,7 +371,7 @@ function PurchaseModal({ visible, onClose, onSubmit }: PurchaseModalProps) {
                 pressed && { opacity: 0.9 },
               ]}
             >
-              <Text style={{ color: colors.light.surface, fontSize: 16, fontWeight: '700' }}>Speichern</Text>
+              <Text style={{ color: theme.colors.surface, fontSize: 16, fontWeight: '700' }}>Speichern</Text>
             </Pressable>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -360,10 +391,11 @@ function CheckinModal({ visible, onClose, onSubmit }: CheckinModalProps) {
     () => ({ dateISO: new Date().toISOString() }),
     [visible]
   );
+  const { theme } = useTheme();
   if (!visible) return null;
   return (
     <Modal animationType="slide" visible onRequestClose={onClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.light.surface }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }}>
         <FormHeader title="Daily Check-in" onClose={onClose} />
         <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: spacing.xl }}>
           <MultiStepDailyCheckin initial={initial} onSubmit={onSubmit} onCancel={onClose} />
@@ -375,11 +407,19 @@ function CheckinModal({ visible, onClose, onSubmit }: CheckinModalProps) {
 
 type GlobalQuickActionsProps = {
   navRef?: NavigationContainerRefWithCurrent<any>;
+  onOpenMenuRef?: React.MutableRefObject<(() => void) | null>;
 };
 
-export default function GlobalQuickActions({ navRef }: GlobalQuickActionsProps) {
+export default function GlobalQuickActions({ navRef, onOpenMenuRef }: GlobalQuickActionsProps) {
   const insets = useSafeAreaInsets();
   const [menuOpen, setMenuOpen] = useState(false);
+  
+  // Expose function to open menu from outside (e.g., from TabBar)
+  React.useEffect(() => {
+    if (onOpenMenuRef) {
+      onOpenMenuRef.current = () => setMenuOpen(true);
+    }
+  }, [onOpenMenuRef]);
   const [activeForm, setActiveForm] = useState<SheetFormKey | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const profile = useApp((s) => s.profile);
@@ -521,7 +561,8 @@ export default function GlobalQuickActions({ navRef }: GlobalQuickActionsProps) 
 
   return (
     <>
-      {!quickActionsHidden ? (
+      {/* Plus Button is now in TabBar - always hide it here */}
+      {false && !quickActionsHidden ? (
         <View
           pointerEvents="box-none"
           style={{
@@ -571,8 +612,12 @@ export default function GlobalQuickActions({ navRef }: GlobalQuickActionsProps) 
       <ActionSheet
         visible={menuOpen}
         bottomInset={insets.bottom || 0}
-        onClose={() => setMenuOpen(false)}
+        onClose={() => {
+          haptics.trigger('general', 'selection');
+          setMenuOpen(false);
+        }}
         onSelect={(key) => {
+          haptics.trigger('general', 'selection');
           setMenuOpen(false);
           if (key === 'pause') {
             navRef?.current?.navigate('PausePlan');

@@ -21,6 +21,67 @@ const REGION_PRICE_PER_GRAM: Record<string, number> = {
 const normalizeValue = (value?: number | null) => (value && Number.isFinite(value) ? value : 0);
 
 export const gramsPerDay = (profile: OnboardingProfile): number => {
+  // Neue Felder verwenden, falls vorhanden
+  if (profile.consumptionMethods && profile.consumptionMethods.length > 0 && profile.consumptionDetails) {
+    let totalGramsPerWeek = 0;
+    
+    // Berechne aus consumptionDetails
+    profile.consumptionMethods.forEach((method) => {
+      const details = profile.consumptionDetails[method];
+      if (!details) return;
+      
+      switch (method) {
+        case 'joints':
+        case 'blunts':
+          if (details.jointsPerWeek && details.gramsPerJoint) {
+            totalGramsPerWeek += details.jointsPerWeek * details.gramsPerJoint;
+          }
+          break;
+        case 'bongs':
+        case 'pipes':
+          if (details.sessionsPerWeek && details.gramsPerSession) {
+            totalGramsPerWeek += details.sessionsPerWeek * details.gramsPerSession;
+          }
+          break;
+        case 'edibles':
+          if (details.ediblesPerWeek && details.mgTHCPerPortion) {
+            // Konvertiere mg THC zu Gramm (ungefähr, da wir die Potenz nicht genau kennen)
+            // Verwende einen Schätzwert: 1g = ~100mg THC bei 10% Potenz
+            totalGramsPerWeek += (details.ediblesPerWeek * details.mgTHCPerPortion) / 100;
+          }
+          break;
+        case 'vapes':
+          if (details.vapeSessionsPerWeek) {
+            // Schätzung: ~0.1g pro Vape-Session
+            totalGramsPerWeek += details.vapeSessionsPerWeek * 0.1;
+          }
+          break;
+        case 'capsules':
+          if (details.capsulesPerWeek && details.mgTHCPerCapsule) {
+            // Konvertiere mg THC zu Gramm
+            totalGramsPerWeek += (details.capsulesPerWeek * details.mgTHCPerCapsule) / 100;
+          }
+          break;
+        case 'oils':
+        case 'dabs':
+          if (details.oilSessionsPerWeek) {
+            // Schätzung: ~0.05g pro Oil/Dab-Session
+            totalGramsPerWeek += details.oilSessionsPerWeek * 0.05;
+          }
+          break;
+      }
+    });
+    
+    if (totalGramsPerWeek > 0) {
+      return totalGramsPerWeek / 7; // Konvertiere von Woche zu Tag
+    }
+  }
+  
+  // Fallback: Legacy-Felder verwenden
+  if (!profile.consumption || !profile.consumption.frequency) {
+    return 0;
+  }
+  
   const { frequency } = profile.consumption;
   const divisor = UNIT_DIVISOR[frequency.unit ?? 'week'];
   const joints =
@@ -47,6 +108,16 @@ export const thcMgPerDay = (profile: OnboardingProfile): number => {
 };
 
 export const costPerDay = (profile: OnboardingProfile): CostEstimateResult => {
+  // Neue Felder verwenden, falls vorhanden
+  if (profile.weeklySpend && profile.weeklySpend > 0) {
+    return {
+      value: profile.weeklySpend / 7,
+      confidence: 'high',
+      source: 'user',
+    };
+  }
+  
+  // Fallback: Legacy-Felder verwenden
   const spend = profile.spend;
   if (spend?.amount != null) {
     const divisor = UNIT_DIVISOR[spend.unit ?? 'week'];
@@ -56,6 +127,7 @@ export const costPerDay = (profile: OnboardingProfile): CostEstimateResult => {
       source: 'user',
     };
   }
+  
   const grams = gramsPerDay(profile);
   if (grams <= 0) {
     return { value: 0, confidence: 'low', source: 'estimate' };

@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { NativeModulesProxy } from 'expo-modules-core';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { saveStroopSession, type SessionSummary } from './storage';
+import { haptics } from '../../services/haptics';
 
 type Mode = 'INK' | 'WORD';
 type ColorName = 'RED' | 'GREEN' | 'BLUE' | 'YELLOW' | 'PURPLE' | 'ORANGE';
@@ -50,19 +51,6 @@ const COLOR_OPTIONS: ColorOption[] = [
   { name: 'PURPLE', label: 'Lila', hex: '#a855f7', marker: '⬟' },
   { name: 'ORANGE', label: 'Orange', hex: '#f97316', marker: '⬢' },
 ];
-
-const HAPTICS_MODULE = NativeModulesProxy?.ExpoHapticsModule as
-  | {
-      impactAsync?: (style: number) => Promise<void>;
-      notificationAsync?: (type: number) => Promise<void>;
-    }
-  | undefined;
-
-const triggerHaptic = (kind: 'success' | 'warning') => {
-  if (!HAPTICS_MODULE?.impactAsync) return;
-  const style = kind === 'success' ? 0 : 1; // roughly maps to Light / Medium styles
-  HAPTICS_MODULE.impactAsync(style).catch(() => undefined);
-};
 
 const createSeededRng = (seed: number) => {
   let value = seed % 2147483647;
@@ -256,7 +244,7 @@ export default function StroopGame({
       const rt = Math.max(0, now - started);
       const correct = !timedOut && selectedName === trial.correctColor.name;
 
-      triggerHaptic(correct ? 'success' : 'warning');
+      haptics.trigger('game', correct ? 'success' : 'error');
 
       setResults((prev) => [
         ...prev,
@@ -346,14 +334,16 @@ export default function StroopGame({
       ? 'Tipp auf die FARBE der Schrift – ignoriere das Wort.'
       : 'Tipp auf das WORT – ignoriere die Schriftfarbe.';
 
-return (
-  <View style={styles.root}>
-    <View style={styles.topBar}>
-      <Pressable style={styles.abortBtn} onPress={handleAbort} accessibilityRole="button">
-        <Ionicons name="close-circle-outline" size={18} color="#f5f5f5" />
-        <Text style={styles.abortText}>Abbrechen</Text>
-      </Pressable>
-    </View>
+  const insets = useSafeAreaInsets();
+
+  return (
+    <View style={styles.root}>
+      <View style={[styles.topBar, { paddingTop: Math.max(insets.top, 24) }]}>
+        <Pressable style={styles.abortBtn} onPress={handleAbort} accessibilityRole="button">
+          <Ionicons name="close-circle-outline" size={18} color="#f5f5f5" />
+          <Text style={styles.abortText}>Abbrechen</Text>
+        </Pressable>
+      </View>
     <View style={styles.stageContainer}>
       {stage === 'intro' ? (
         <View style={styles.centerWrap}>
@@ -510,12 +500,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#050505',
     paddingHorizontal: 24,
-    paddingVertical: 24,
+    paddingBottom: 24,
     gap: 16,
   },
   topBar: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
+    paddingBottom: 8,
   },
   abortBtn: {
     flexDirection: 'row',

@@ -51,7 +51,7 @@ export default function Settings() {
         contentContainerStyle={{
           paddingHorizontal: spacing.l as any,
           paddingTop: insets.top + HEADER_TOTAL_HEIGHT + headerAccessoryHeight + (spacing.l as any),
-          paddingBottom: Math.max(spacing.l as any, insets.bottom),
+          paddingBottom: Math.max(spacing.l as any, insets.bottom) + 100, // Extra Padding für TabBar
           gap: spacing.m as any,
         }}
         onScroll={handleScroll}

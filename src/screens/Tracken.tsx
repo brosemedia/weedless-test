@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, View, Text, Pressable, StyleSheet, Modal, Image } from 'react-native';
+import { ScrollView, View, Text, Pressable, StyleSheet, Modal, Image, ImageBackground, Animated } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import {
@@ -28,7 +28,7 @@ import { useApp } from '../store/app';
 import { useQuickActionsVisibility } from '../hooks/useQuickActionsVisibility';
 import { useHeaderTransparency } from '../hooks/useHeaderTransparency';
 import { usePauseEngine } from '../hooks/usePauseEngine';
-import { TASK_XP } from '../lib/tasks';
+import { TASK_XP, TaskKey } from '../lib/tasks';
 import StroopGame from '../games/stroop/StroopGame';
 import { getLastStroopSummary, type SessionSummary } from '../games/stroop/storage';
 import type { DayLog } from '../types/profile';
@@ -36,8 +36,12 @@ import { FrostedSurface } from '../design/FrostedSurface';
 import { dayKeysBetween, parseDateKey } from '../lib/pause';
 import { createConsumptionEntry } from '../lib/consumption';
 import { useUiStore } from '../store/ui';
+import { useTheme } from '../theme/useTheme';
+import type { ThemeColors, ThemeMode } from '../theme/themes';
 
-type TaskId = 'reaction-test' | 'stroop-focus' | 'breathing-session' | 'zen-glide' | 'daily-check-in';
+const AMBIENT_BG = require('../../assets/ambient_bg.png');
+
+type TaskId = TaskKey;
 
 type TaskDefinition = {
   id: TaskId;
@@ -58,6 +62,13 @@ const TASKS: TaskDefinition[] = [
   },
   { id: 'breathing-session', title: 'Atemübung', subtitle: '5 Minuten Ruhe', kind: 'minigame' },
   { id: 'zen-glide', title: 'ZenGlide', subtitle: 'Kurzer Flow', kind: 'minigame' },
+  { id: 'mind-house', title: 'Mind House', subtitle: 'Fokus trainieren', kind: 'minigame' },
+  {
+    id: 'number-flow',
+    title: 'Number Flow',
+    subtitle: 'Mentale Rechenkette',
+    kind: 'minigame',
+  },
   { id: 'daily-check-in', title: 'Check-in', subtitle: 'Gefühl & Konsum notieren', kind: 'tracking' },
 ] as const;
 
@@ -71,6 +82,8 @@ const ICONS: Record<TaskId, keyof typeof Ionicons.glyphMap> = {
   'stroop-focus': 'color-filter-outline',
   'breathing-session': 'heart-outline',
   'zen-glide': 'paper-plane-outline',
+  'mind-house': 'home-outline',
+  'number-flow': 'calculator-outline',
   'daily-check-in': 'calendar-outline',
 };
 
@@ -226,30 +239,47 @@ type DayChipProps = {
   hasConsumption: boolean;
   showStatusIcon: boolean;
   onPress: () => void;
+  isBeforeStart?: boolean;
+  indicatorColor?: string;
 };
 
-function DayChip({ date, selected, hasConsumption, showStatusIcon, onPress }: DayChipProps) {
-  const weekday = format(date, 'EE', { locale: de });
+function DayChip({ date, selected, hasConsumption, showStatusIcon, onPress, isBeforeStart, indicatorColor }: DayChipProps) {
+  const { theme } = useTheme();
+  const palette = theme.colors;
   const dayNumber = format(date, 'd');
+  
+  // Tage vor dem Start werden nicht angezeigt (leerer Platzhalter)
+  if (isBeforeStart) {
+    return <View style={styles.dayChipPlaceholder} />;
+  }
+  
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      style={[styles.dayChip, selected && styles.dayChipSelected]}
+      style={[styles.dayChipCompact, selected && styles.dayChipCompactSelected]}
     >
-      <Text style={styles.dayLabel}>{weekday}</Text>
-      <View style={styles.dayCircle}>
-        <Text style={styles.dayNumber}>{dayNumber}</Text>
+      <View 
+        style={[
+          styles.dayNumberBox, 
+          { backgroundColor: palette.surfaceMuted },
+          selected && [styles.dayNumberBoxSelected, { backgroundColor: palette.primary }],
+        ]}
+      >
+        <Text 
+          style={[
+            styles.dayNumberCompact, 
+            { color: palette.text },
+            selected && styles.dayNumberCompactSelected,
+          ]}
+        >
+          {dayNumber}
+        </Text>
       </View>
-      {showStatusIcon ? (
-        <Image
-          source={hasConsumption ? CONSUMED_ICON : THC_FREE_ICON}
-          resizeMode="contain"
-          accessibilityLabel={hasConsumption ? 'Konsum erfasst' : 'Kein Konsum'}
-          style={styles.dayStatusIcon}
-        />
+      {showStatusIcon && indicatorColor ? (
+        <View style={[styles.dayIndicatorDot, { backgroundColor: indicatorColor }]} />
       ) : (
-        <View style={styles.dayStatusSpacer} />
+        <View style={styles.dayIndicatorSpacer} />
       )}
     </Pressable>
   );
@@ -270,7 +300,7 @@ function TaskCard({ task, completed, disabled, onPress, infoText, chipLabel, tes
   const xp = TASK_XP[task.id] ?? 0;
   const secondary = disabled ? 'Nur heute möglich' : completed ? 'Starker Move' : 'Dranbleiben';
   const ctaLabel = completed ? 'Geschafft' : 'Tippen & starten';
-  const iconColor = completed ? lt.surface : lt.navy;
+  const iconColor = completed ? lt.surface : lt.text;
   const icon =
     task.id === 'zen-glide' ? (
       <HeroFigure width={28} height={28} />
@@ -310,7 +340,7 @@ function TaskCard({ task, completed, disabled, onPress, infoText, chipLabel, tes
           <Ionicons
             name={completed ? 'checkmark-circle' : 'play-circle'}
             size={44}
-            color={disabled ? lt.textMuted : completed ? lt.surface : lt.primary}
+            color={disabled ? lt.textMuted : completed ? lt.surface : lt.text}
           />
         </View>
         {chipLabel ? (
@@ -336,7 +366,7 @@ function TaskCard({ task, completed, disabled, onPress, infoText, chipLabel, tes
     >
       <View style={styles.taskCardBody}>
         {xpBadge}
-        {completed ? (
+        {completed === true ? (
           <View style={[styles.taskInner, styles.taskInnerDone]}>
             {cardContent}
           </View>
@@ -344,8 +374,9 @@ function TaskCard({ task, completed, disabled, onPress, infoText, chipLabel, tes
           <FrostedSurface
             borderRadius={radius.l}
             intensity={70}
-            fallbackColor="rgba(255,255,255,0.04)"
-            overlayColor="rgba(255,255,255,0.18)"
+            fallbackColor="#ffffff"
+            overlayColor="rgba(255,255,255,0.95)"
+            tint="light"
             style={[styles.taskInner, styles.taskInnerBlur]}
           >
             {cardContent}
@@ -362,9 +393,10 @@ type CalendarOverviewModalProps = {
   onSelectDate: (day: Date) => void;
   dayLogs: Record<string, DayLog>;
   pauseMap?: Record<string, 'active' | 'past'>;
+  userStartDate?: Date | null;
 };
 
-function CalendarOverviewModal({ visible, onClose, onSelectDate, dayLogs, pauseMap }: CalendarOverviewModalProps) {
+function CalendarOverviewModal({ visible, onClose, onSelectDate, dayLogs, pauseMap, userStartDate }: CalendarOverviewModalProps) {
   useQuickActionsVisibility('tracken-calendar', visible);
   const insets = useSafeAreaInsets();
   const [calendarAnchor, setCalendarAnchor] = useState(() => new Date());
@@ -374,6 +406,7 @@ function CalendarOverviewModal({ visible, onClose, onSelectDate, dayLogs, pauseM
   const [monthBlockHeight, setMonthBlockHeight] = useState<number | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const initialScrollDone = useRef(false);
+  const lastTapRef = useRef<{ date: Date; ts: number } | null>(null);
 
   useEffect(() => {
     if (!visible) return;
@@ -405,10 +438,16 @@ function CalendarOverviewModal({ visible, onClose, onSelectDate, dayLogs, pauseM
   }, [visible, monthBlockHeight]);
 
   const handleDayPress = (day: Date) => {
+    const nowTs = Date.now();
+    const isDoubleTap =
+      lastTapRef.current && isSameDay(day, lastTapRef.current.date) && nowTs - lastTapRef.current.ts < 450;
     setFocusedDate(day);
     onSelectDate(day);
-    setActivityDate(day);
-    setActivityModalVisible(true);
+    if (isDoubleTap) {
+      setActivityDate(day);
+      setActivityModalVisible(true);
+    }
+    lastTapRef.current = { date: day, ts: nowTs };
   };
 
   return (
@@ -423,7 +462,7 @@ function CalendarOverviewModal({ visible, onClose, onSelectDate, dayLogs, pauseM
           styles.calendarModalScreen,
           {
             paddingTop: insets.top + sp.l,
-            paddingBottom: Math.max(sp.l as number, insets.bottom + sp.m),
+            paddingBottom: Math.max(sp.l as number, insets.bottom + sp.m) + 100, // Extra Padding für TabBar
           },
         ]}
       >
@@ -485,6 +524,19 @@ function CalendarOverviewModal({ visible, onClose, onSelectDate, dayLogs, pauseM
                     const isCurrentMonth = isSameMonth(day, monthStart);
                     const isToday = isSameDay(day, today);
                     const pauseState = pauseMap?.[key];
+                    
+                    // Prüfen ob Tag vor dem Benutzer-Start liegt
+                    const isBeforeStart = userStartDate ? isBefore(startOfDay(day), userStartDate) : false;
+                    
+                    // Tage vor dem Start werden als leere Platzhalter angezeigt
+                    if (isBeforeStart) {
+                      return (
+                        <View key={day.toISOString()} style={[styles.calendarMonthDay, styles.calendarMonthDayHidden]}>
+                          <Text style={styles.calendarMonthDayTextHidden}>{format(day, 'd')}</Text>
+                        </View>
+                      );
+                    }
+                    
                     return (
                       <Pressable
                         key={day.toISOString()}
@@ -551,23 +603,29 @@ type ActivitiesModalProps = {
 
 function ActivitiesModal({ visible, onClose, date, entries }: ActivitiesModalProps) {
   const insets = useSafeAreaInsets();
+  const { theme } = useTheme();
+  const palette = theme.colors;
   const title = date ? format(date, 'EEEE, d. MMMM', { locale: de }) : 'Aktivitäten';
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
-      <SafeAreaView style={[styles.activitiesScreen, { paddingTop: insets.top + sp.l }]}>
+      <SafeAreaView style={[styles.activitiesScreen, { paddingTop: insets.top + sp.l, backgroundColor: palette.background }]}>
         <View style={styles.activitiesHeader}>
           <View>
-            <Text style={styles.activitiesTitle}>{title}</Text>
-            <Text style={styles.activitiesSubtitle}>Alles auf einen Blick</Text>
+            <Text style={[styles.activitiesTitle, { color: palette.text }]}>{title}</Text>
+            <Text style={[styles.activitiesSubtitle, { color: palette.textMuted }]}>Alles auf einen Blick</Text>
           </View>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Aktivitäten schließen"
             onPress={onClose}
             hitSlop={8}
-            style={({ pressed }) => [styles.activitiesCloseBtn, pressed && styles.activitiesCloseBtnPressed]}
+            style={({ pressed }) => [
+              styles.activitiesCloseBtn,
+              { backgroundColor: palette.surfaceMuted, borderColor: palette.border, borderWidth: StyleSheet.hairlineWidth },
+              pressed && styles.activitiesCloseBtnPressed,
+            ]}
           >
-            <Ionicons name="close" size={20} color={lt.text} />
+            <Ionicons name="close" size={20} color={palette.text} />
           </Pressable>
         </View>
         {entries.length ? (
@@ -579,25 +637,28 @@ function ActivitiesModal({ visible, onClose, date, entries }: ActivitiesModalPro
             {entries.map((entry) => (
               <View
                 key={`${entry.label}-${entry.value ?? entry.details?.length ?? 0}`}
-                style={styles.activityBlock}
+                style={[
+                  styles.activityBlock,
+                  { backgroundColor: palette.surface, borderColor: palette.border, borderWidth: StyleSheet.hairlineWidth },
+                ]}
               >
                 <View style={styles.activityBlockHeader}>
-                  <View style={styles.activityIconWrap}>
-                    <Ionicons name={getActivityIcon(entry.label)} size={20} color={lt.text} />
+                  <View style={[styles.activityIconWrap, { backgroundColor: palette.surfaceMuted }]}>
+                    <Ionicons name={getActivityIcon(entry.label)} size={20} color={palette.text} />
                   </View>
-                  <Text style={styles.activityLabel}>{entry.label}</Text>
+                  <Text style={[styles.activityLabel, { color: palette.text }]}>{entry.label}</Text>
                 </View>
-                {entry.value ? <Text style={styles.activityValue}>{entry.value}</Text> : null}
+                {entry.value ? <Text style={[styles.activityValue, { color: palette.text }]}>{entry.value}</Text> : null}
                 {entry.details ? (
                   <View style={styles.activityDetails}>
                     {entry.details.map((detail) => (
                       <View key={`${detail.label}-${detail.value}`} style={styles.activityDetailRow}>
-                        <View style={styles.activityDetailIcon}>
-                          <Ionicons name={detail.icon} size={18} color={lt.text} />
+                        <View style={[styles.activityDetailIcon, { backgroundColor: palette.surfaceMuted }]}>
+                          <Ionicons name={detail.icon} size={18} color={palette.text} />
                         </View>
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.activityDetailLabel}>{detail.label}</Text>
-                          <Text style={styles.activityDetailValue}>{detail.value}</Text>
+                          <Text style={[styles.activityDetailLabel, { color: palette.textMuted }]}>{detail.label}</Text>
+                          <Text style={[styles.activityDetailValue, { color: palette.text }]}>{detail.value}</Text>
                         </View>
                       </View>
                     ))}
@@ -608,7 +669,7 @@ function ActivitiesModal({ visible, onClose, date, entries }: ActivitiesModalPro
           </ScrollView>
         ) : (
           <View style={styles.activityEmptyWrap}>
-            <Text style={styles.activityEmpty}>Noch keine Aktivitäten gespeichert</Text>
+            <Text style={[styles.activityEmpty, { color: palette.textMuted }]}>Noch keine Aktivitäten gespeichert</Text>
           </View>
         )}
       </SafeAreaView>
@@ -617,6 +678,9 @@ function ActivitiesModal({ visible, onClose, date, entries }: ActivitiesModalPro
 }
 
 export default function TrackenScreen() {
+  const { theme } = useTheme();
+  const palette = theme.colors;
+  const sectionStyles = useMemo(() => createTrackSectionStyles(palette, theme.mode), [palette, theme.mode]);
   const insets = useSafeAreaInsets();
   const headerAccessoryHeight = useUiStore((s) => s.headerAccessoryHeight);
   const navigation = useNavigation<any>();
@@ -628,6 +692,11 @@ export default function TrackenScreen() {
   const upsertDayLog = useApp((s) => s.upsertDayLog);
   const markTaskDone = useApp((s) => s.markTaskDone);
   const pauses = useApp((s) => s.pauses);
+  const profile = useApp((s) => s.profile);
+  const userStartDate = useMemo(() => {
+    if (!profile?.startTimestamp) return null;
+    return startOfDay(new Date(profile.startTimestamp));
+  }, [profile?.startTimestamp]);
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [showCheck, setShowCheck] = useState(false);
@@ -637,11 +706,39 @@ export default function TrackenScreen() {
   const [activityDate, setActivityDate] = useState<Date | null>(null);
   const [activityModalVisible, setActivityModalVisible] = useState(false);
   const [lastStroop, setLastStroop] = useState<SessionSummary | null>(null);
+  const taskScrollRef = useRef<ScrollView>(null);
+  const [taskScrollOffset, setTaskScrollOffset] = useState(0);
+  const taskScrollX = useRef(new Animated.Value(0)).current;
+  const [taskContainerWidth, setTaskContainerWidth] = useState(0);
+  const [currentTaskIndex, setCurrentTaskIndex] = useState(0);
+  const lastDayTapRef = useRef<{ date: Date; ts: number } | null>(null);
+  const compactCalendarRef = useRef<ScrollView | null>(null);
+  
+  // Task Scroll Konstanten
+  const TASK_CARD_WIDTH = 270;
+  const TASK_CARD_GAP = 16;
+  const TASK_CARD_SPACING = TASK_CARD_WIDTH + TASK_CARD_GAP;
+  const taskHorizontalInset = useMemo(() => {
+    if (!taskContainerWidth) return 0;
+    return (taskContainerWidth - TASK_CARD_WIDTH) / 2;
+  }, [taskContainerWidth]);
+  
+  const scrollToTaskIndex = (index: number) => {
+    const clampedIndex = Math.max(0, Math.min(index, TASKS.length - 1));
+    const x = clampedIndex * TASK_CARD_SPACING;
+    taskScrollRef.current?.scrollTo({ x, animated: true });
+    setCurrentTaskIndex(clampedIndex);
+  };
 
+  const today = startOfDay(new Date());
   const weekDays = useMemo(
     () => Array.from({ length: 7 }, (_, idx) => addDays(weekStart, idx)),
     [weekStart]
   );
+  const compactDays = useMemo(() => {
+    const start = userStartDate ?? addDays(today, -30);
+    return eachDayOfInterval({ start, end: today });
+  }, [today, userStartDate]);
 
   const selectedKey = formatKey(selectedDate);
   const logForSelected = dayLogs[selectedKey];
@@ -666,7 +763,6 @@ export default function TrackenScreen() {
     completed: completedIds.has(task.id),
   }));
   const completedCount = tasks.filter((t) => t.completed).length;
-  const today = startOfDay(new Date());
   const selectedDayStart = startOfDay(selectedDate);
   const isTodaySelected = isSameDay(selectedDayStart, today);
   const stroopChipLabel = lastStroop
@@ -674,12 +770,16 @@ export default function TrackenScreen() {
     : undefined;
 
   const handleSelectDay = (day: Date) => {
+    const nowTs = Date.now();
+    const lastTap = lastDayTapRef.current;
+    const isSameAsLast = lastTap && isSameDay(day, lastTap.date) && nowTs - lastTap.ts < 450;
     setSelectedDate(day);
     setWeekStart(startOfWeek(day, { weekStartsOn: 1 }));
-    if (day) {
+    if (isSameAsLast) {
       setActivityDate(day);
       setActivityModalVisible(true);
     }
+    lastDayTapRef.current = { date: day, ts: nowTs };
   };
 
   const changeWeek = (offset: number) => {
@@ -706,6 +806,14 @@ export default function TrackenScreen() {
     const timeout = setTimeout(() => setStatusMessage(null), 2400);
     return () => clearTimeout(timeout);
   }, [statusMessage]);
+
+  useEffect(() => {
+    const index = compactDays.findIndex((d) => isSameDay(d, selectedDate));
+    if (index < 0) return;
+    requestAnimationFrame(() => {
+      compactCalendarRef.current?.scrollTo({ x: Math.max(0, index * 64 - 120), animated: true });
+    });
+  }, [compactDays, selectedDate]);
 
   const openCheck = () => setShowCheck(true);
   const closeCheck = () => setShowCheck(false);
@@ -778,6 +886,22 @@ export default function TrackenScreen() {
     return grams > 0 || joints > 0;
   };
 
+  // Prüft ob ein Tag vor dem Benutzer-Startdatum liegt
+  const isBeforeUserStart = (date: Date) => {
+    if (!userStartDate) return false;
+    return isBefore(startOfDay(date), userStartDate);
+  };
+
+  // Bestimmt die Indikator-Farbe basierend auf dem Tag-Status
+  const getIndicatorColor = (date: Date): string | undefined => {
+    const dayStart = startOfDay(date);
+    if (!isBefore(dayStart, today)) return undefined; // Zukunft oder heute - kein Indikator
+    
+    const consumed = hasConsumption(date);
+    if (consumed) return '#f97316'; // Orange für Konsum
+    return '#22c55e'; // Grün für konsumfrei
+  };
+
   const navigateTo = (id: TaskId) => {
     if (id === 'stroop-focus') {
       setShowStroop(true);
@@ -790,6 +914,10 @@ export default function TrackenScreen() {
       parent.navigate('Breath');
     } else if (id === 'zen-glide') {
       parent.navigate('ZenGlide');
+    } else if (id === 'mind-house') {
+      parent.navigate('MindHouseGame');
+    } else if (id === 'number-flow') {
+      parent.navigate('NumberFlowGame');
     } else if (id === 'daily-check-in') {
       openCheck();
     }
@@ -809,33 +937,36 @@ export default function TrackenScreen() {
   return (
     <>
       <ScrollView
-        style={styles.screen}
-        contentContainerStyle={[styles.body, { paddingTop: topOffset, paddingBottom: Math.max(sp.xxl as number, insets.bottom) }]}
+        style={[styles.screen, { backgroundColor: palette.background }]}
+        contentContainerStyle={[styles.body, { paddingTop: topOffset, paddingBottom: Math.max(sp.xxl as number, insets.bottom) + 100 }]}
         onScroll={handleScroll}
         scrollEventThrottle={16}
       >
-        <View style={styles.calendarCard}>
-          <View style={styles.calendarHeader}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => changeWeek(-1)}
-              style={styles.calendarButton}
-            >
-              <Ionicons name="chevron-back" size={18} color={lt.text} />
-            </Pressable>
-            <Text style={styles.calendarMonth}>
-              {format(selectedDate, 'LLLL yyyy', { locale: de })}
+        {/* Kompakter iOS-Stil Kalender */}
+        <View style={styles.compactCalendarContainer}>
+          <View style={styles.compactCalendarHeader}>
+            <Text style={[styles.compactCalendarMonth, { color: palette.text }]}>
+              {format(selectedDate, 'LLLL', { locale: de })}
             </Text>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => changeWeek(1)}
-              style={styles.calendarButton}
-            >
-              <Ionicons name="chevron-forward" size={18} color={lt.text} />
-            </Pressable>
           </View>
-          <View style={styles.weekRow}>
-            {weekDays.map((day) => (
+          
+          {/* Wochentage Header */}
+          <View style={styles.weekdayHeaderRow}>
+            {WEEKDAY_SHORT.map((abbr) => (
+              <Text key={abbr} style={[styles.weekdayHeaderText, { color: palette.textMuted }]}>
+                {abbr}
+              </Text>
+            ))}
+          </View>
+          
+          {/* Tage als kompakte Boxen */}
+          <ScrollView
+            ref={compactCalendarRef}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={[styles.compactWeekRow, { paddingHorizontal: spacing.s }]}
+          >
+            {compactDays.map((day) => (
               <DayChip
                 key={day.toISOString()}
                 date={day}
@@ -843,82 +974,257 @@ export default function TrackenScreen() {
                 hasConsumption={hasConsumption(day)}
                 showStatusIcon={isBefore(startOfDay(day), today)}
                 onPress={() => handleSelectDay(day)}
+                isBeforeStart={isBeforeUserStart(day)}
+                indicatorColor={getIndicatorColor(day)}
               />
             ))}
+          </ScrollView>
+          
+          {/* Trennlinie und Expand Button */}
+          <View style={styles.calendarFooter}>
+            <View style={[styles.calendarDivider, { backgroundColor: palette.border }]} />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Kalender erweitern"
+              onPress={openCalendarModal}
+              style={({ pressed }) => [
+                styles.expandButton,
+                { backgroundColor: palette.surfaceMuted },
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Ionicons name="chevron-down" size={18} color={palette.text} />
+            </Pressable>
           </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Kalender vergrößern"
-          onPress={openCalendarModal}
-          style={({ pressed }) => [styles.calendarExpandButton, pressed && styles.calendarExpandButtonPressed]}
-        >
-          <Ionicons name="grid-outline" size={18} color={lt.primary} />
-          <Text style={styles.calendarExpandLabel}>Kalender öffnen</Text>
-        </Pressable>
-      </View>
+        </View>
 
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Check-in starten"
-        onPress={openCheck}
-        style={({ pressed }) => [styles.checkinCta, pressed && styles.checkinCtaPressed]}
-      >
-        <View style={styles.checkinCtaIcon}>
-          <Ionicons name="calendar-outline" size={22} color="#ffffff" />
+        <View style={[styles.cardFrame, { borderColor: palette.border }]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Check-in starten"
+            onPress={openCheck}
+            style={({ pressed }) => [
+              sectionStyles.section,
+              styles.checkinCta,
+              { backgroundColor: palette.primary, borderColor: palette.primaryRing, shadowColor: palette.primary },
+              pressed && styles.checkinCtaPressed,
+            ]}
+          >
+            <View style={styles.checkinCtaIcon}>
+              <Ionicons name="calendar-outline" size={22} color="#ffffff" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.checkinCtaTitle}>Check-in starten</Text>
+              <Text style={styles.checkinCtaSubtitle}>Direkt zur ersten Frage springen</Text>
+            </View>
+            <Ionicons name="arrow-forward-circle" size={30} color="#ffffff" />
+          </Pressable>
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.checkinCtaTitle}>Check-in starten</Text>
-          <Text style={styles.checkinCtaSubtitle}>Direkt zur ersten Frage springen</Text>
-        </View>
-        <Ionicons name="arrow-forward-circle" size={30} color="#ffffff" />
-      </Pressable>
 
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Pause einlegen"
-        onPress={openPausePlanner}
-        style={({ pressed }) => [styles.pauseCta, pressed && styles.pauseCtaPressed]}
-      >
-        <View style={styles.pauseCtaIcon}>
-          <Ionicons name="pause-circle" size={24} color={colors.light.primary} />
+        <View style={[styles.cardFrame, { borderColor: palette.border }]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Pause einlegen"
+            onPress={openPausePlanner}
+            style={({ pressed }) => [sectionStyles.section, styles.pauseCta, pressed && styles.pauseCtaPressed]}
+          >
+            <View style={styles.pauseCtaIcon}>
+              <Ionicons name="pause-circle" size={24} color={palette.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text
+                style={[
+                  styles.pauseCtaTitle,
+                  { color: theme.mode === 'dark' ? '#ffffff' : palette.text },
+                ]}
+              >
+                Pause einlegen
+              </Text>
+              <Text
+                style={[
+                  styles.pauseCtaSubtitle,
+                  { color: theme.mode === 'dark' ? '#e5e7eb' : palette.textMuted },
+                ]}
+              >
+                {pauseSubtitle}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={22} color={palette.primary} />
+          </Pressable>
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.pauseCtaTitle}>Pause einlegen</Text>
-          <Text style={styles.pauseCtaSubtitle}>{pauseSubtitle}</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={22} color={colors.light.primary} />
-      </Pressable>
 
-      <View style={styles.sectionHeaderRow}>
-        <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Heute erledigt: {completedCount}/{tasks.length}</Text>
-            <Text style={styles.sectionSubtitle}>
-              {isTodaySelected ? 'Mini & Track' : 'Aufgaben können nur am heutigen Tag erledigt werden'}
+      {/* Tasks Section - Combined Container */}
+      <View style={[styles.cardFrame, { borderColor: palette.border }]}>
+        <View style={[styles.tasksSectionContainer, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+        {/* Task Progress Card - Overlay */}
+        <View style={[styles.taskProgressCard, { backgroundColor: palette.surface, zIndex: 2 }]}>
+          <View style={styles.taskProgressHeader}>
+            <View style={styles.taskProgressTitleRow}>
+              <View
+                style={[
+                  styles.taskProgressIconWrap,
+                  { backgroundColor: theme.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(16,104,74,0.12)' },
+                ]}
+              >
+                <Ionicons name="flame" size={20} color={theme.mode === 'dark' ? palette.primary : lt.primary} />
+              </View>
+              <Text style={[styles.taskProgressTitle, { color: palette.text }]}>Tägliche Aufgaben</Text>
+            </View>
+            <View style={[styles.xpBadgeNew, { backgroundColor: '#fbbf24' }]}>
+              <Ionicons name="star" size={14} color="#ffffff" />
+              <Text style={[styles.xpBadgeNewText, { color: '#ffffff' }]}>{todayXp} XP</Text>
+            </View>
+          </View>
+          
+          {/* Progress Bar */}
+          <View style={styles.taskProgressBarContainer}>
+            <View style={[styles.taskProgressBarBg, { backgroundColor: palette.surfaceMuted }]}>
+              <View 
+                style={[
+                  styles.taskProgressBarFill, 
+                  { 
+                    width: `${(completedCount / tasks.length) * 100}%`,
+                    backgroundColor: theme.mode === 'dark' ? palette.primary : completedCount === tasks.length ? '#22c55e' : lt.primary,
+                  }
+                ]} 
+              />
+            </View>
+            <Text style={[styles.taskProgressText, { color: palette.textMuted }]}>
+              {completedCount}/{tasks.length} erledigt
             </Text>
           </View>
-          <View style={styles.xpBadgeLarge}>
-            <Text style={styles.xpBadgeLabel}>Heute</Text>
-            <Text style={styles.xpBadgeValue}>{todayXp} XP</Text>
-          </View>
+
+          {/* Motivational Text */}
+          <Text style={[styles.taskProgressMotivation, { color: palette.textMuted }]}>
+            {!isTodaySelected 
+              ? '📅 Aufgaben nur heute verfügbar'
+              : completedCount === 0 
+                ? '🎯 Starte mit deiner ersten Aufgabe!'
+                : completedCount === tasks.length 
+                  ? '🎉 Großartig! Alle Aufgaben erledigt!'
+                  : `💪 Weiter so! Noch ${tasks.length - completedCount} Aufgaben übrig`
+            }
+          </Text>
         </View>
 
-        <View style={styles.grid}>
-          {tasks.map((task) => {
-            const isStroop = task.id === 'stroop-focus';
-            return (
-              <TaskCard
-                key={task.id}
-                task={task}
-                completed={task.completed}
-                disabled={!isTodaySelected}
-                infoText={task.info}
-                chipLabel={isStroop ? stroopChipLabel : undefined}
-                testID={isStroop ? 'task-stroop' : undefined}
-                onPress={isTodaySelected ? () => navigateTo(task.id) : undefined}
-              />
-            );
-          })}
+        {/* Divider - Overlay */}
+        <View style={[styles.tasksSectionDivider, { backgroundColor: palette.surface, zIndex: 2 }]} />
+
+        {/* Task Cards Scroll - Behind the box */}
+        <View 
+          style={[styles.taskScrollContainer, { zIndex: 1 }]}
+          onLayout={(e) => setTaskContainerWidth(e.nativeEvent.layout.width)}
+        >
+          <Animated.ScrollView
+            ref={taskScrollRef as any}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={[
+              styles.taskScrollContent,
+              { paddingHorizontal: taskHorizontalInset || sp.xl },
+            ]}
+            style={styles.taskScroll}
+            decelerationRate="fast"
+            snapToInterval={TASK_CARD_SPACING}
+            snapToAlignment="start"
+            onScroll={Animated.event(
+              [{ nativeEvent: { contentOffset: { x: taskScrollX } } }],
+              {
+                useNativeDriver: true,
+                listener: (e: any) => {
+                  const offset = e.nativeEvent.contentOffset.x;
+                  setTaskScrollOffset(offset);
+                  const approxIndex = Math.round(offset / TASK_CARD_SPACING);
+                  setCurrentTaskIndex(Math.max(0, Math.min(approxIndex, TASKS.length - 1)));
+                },
+              }
+            )}
+            scrollEventThrottle={16}
+          >
+            {tasks.map((task, idx) => {
+              const isStroop = task.id === 'stroop-focus';
+              const cardOffset = idx * TASK_CARD_SPACING;
+              const inputRange = [
+                cardOffset - TASK_CARD_SPACING,
+                cardOffset,
+                cardOffset + TASK_CARD_SPACING,
+              ];
+              const scale = taskScrollX.interpolate({
+                inputRange,
+                outputRange: [0.88, 1.05, 0.88],
+                extrapolate: 'clamp',
+              });
+              const rotateY = taskScrollX.interpolate({
+                inputRange,
+                outputRange: ['6deg', '0deg', '-6deg'],
+                extrapolate: 'clamp',
+              });
+              // Ensure backgroundColor stays constant - no color animation based on scroll
+              const backgroundColor = theme.mode === 'dark' ? palette.surface : palette.surfaceMuted;
+              const borderColor = palette.border;
+              
+              return (
+                <Animated.View
+                  key={task.id}
+                  style={[
+                    styles.taskFrameHorizontal,
+                    {
+                      backgroundColor,
+                      borderColor,
+                      transform: [
+                        { perspective: 800 },
+                        { scale },
+                        { rotateY },
+                      ],
+                    },
+                  ]}
+                >
+                  <TaskCard
+                    task={task}
+                    completed={task.completed}
+                    disabled={!isTodaySelected}
+                    infoText={task.info}
+                    chipLabel={isStroop ? stroopChipLabel : undefined}
+                    testID={isStroop ? 'task-stroop' : undefined}
+                    onPress={isTodaySelected ? () => navigateTo(task.id) : undefined}
+                  />
+                </Animated.View>
+              );
+            })}
+          </Animated.ScrollView>
+          {/* Scroll-Indikator Pfeil links */}
+          {currentTaskIndex > 0 && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Vorherige Tasks anzeigen"
+              onPress={() => scrollToTaskIndex(currentTaskIndex - 1)}
+              style={({ pressed }) => [
+                styles.scrollIndicator,
+                styles.scrollIndicatorLeft,
+                pressed && styles.scrollIndicatorPressed,
+              ]}
+            >
+              <Ionicons name="chevron-back" size={20} color={lt.textMuted} />
+            </Pressable>
+          )}
+          {/* Scroll-Indikator Pfeil rechts */}
+          {currentTaskIndex < tasks.length - 1 && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Weitere Tasks anzeigen"
+              onPress={() => scrollToTaskIndex(currentTaskIndex + 1)}
+              style={({ pressed }) => [
+                styles.scrollIndicator,
+                styles.scrollIndicatorRight,
+                pressed && styles.scrollIndicatorPressed,
+              ]}
+            >
+              <Ionicons name="chevron-forward" size={20} color={lt.textMuted} />
+            </Pressable>
+          )}
         </View>
+        </View>
+      </View>
       </ScrollView>
 
       <ActivitiesModal
@@ -964,21 +1270,34 @@ export default function TrackenScreen() {
         presentationStyle="fullScreen"
         onRequestClose={closeCheck}
       >
-        <View style={[styles.modalWrap, { paddingTop: insets.top + sp.xl }]}>
-          <View style={styles.modalHead}>
-            <Text style={styles.modalTitle}>Check-in</Text>
-            <Pressable onPress={closeCheck} accessibilityRole="button" style={styles.modalBtn}>
-              <Text style={styles.modalBtnText}>Schließen</Text>
-            </Pressable>
+        <ImageBackground source={AMBIENT_BG} style={styles.modalWrap} resizeMode="cover">
+          <View
+            style={[
+              styles.modalContent,
+              {
+                paddingTop: insets.top + sp.l,
+                paddingBottom: Math.max(sp.xl as number, (insets.bottom || 0) + sp.l) + 100, // Extra Padding für TabBar
+              },
+            ]}
+          >
+            <View style={styles.modalHead}>
+              <Text style={styles.modalTitle}>Check-in</Text>
+              <Pressable onPress={closeCheck} accessibilityRole="button" style={styles.modalBtn}>
+                <Text style={styles.modalBtnText}>Schließen</Text>
+              </Pressable>
+            </View>
+            <View style={styles.modalCard}>
+              <FrostedSurface borderRadius={radius.xl} style={styles.modalCardSurface}>
+                <CheckForm
+                  initial={{ dateISO: selectedDate.toISOString() }}
+                  onSubmit={submitCheck}
+                  onCancel={closeCheck}
+                  style={styles.checkinForm}
+                />
+              </FrostedSurface>
+            </View>
           </View>
-          <View style={styles.modalCard}>
-            <CheckForm
-              initial={{ dateISO: selectedDate.toISOString() }}
-              onSubmit={submitCheck}
-              onCancel={closeCheck}
-            />
-          </View>
-        </View>
+        </ImageBackground>
       </Modal>
       <CalendarOverviewModal
         visible={showCalendarModal}
@@ -986,6 +1305,7 @@ export default function TrackenScreen() {
         onSelectDate={handleSelectDay}
         dayLogs={dayLogs}
         pauseMap={pauseHighlightMap}
+        userStartDate={userStartDate}
       />
       {statusMessage ? (
         <View
@@ -1006,7 +1326,6 @@ export default function TrackenScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: lt.bg,
     paddingHorizontal: sp.xl,
   },
   body: {
@@ -1029,11 +1348,56 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
   },
+  // Neuer kompakter iOS-Stil Kalender
+  compactCalendarContainer: {
+    width: '100%',
+    gap: sp.m,
+  },
+  compactCalendarHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  compactCalendarMonth: {
+    fontSize: 28,
+    fontWeight: '700',
+  },
+  weekdayHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+  },
+  weekdayHeaderText: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  compactWeekRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  calendarFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sp.m,
+  },
+  calendarDivider: {
+    flex: 1,
+    height: 2,
+    borderRadius: 1,
+  },
+  expandButton: {
+    width: 40,
+    height: 32,
+    borderRadius: radius.m,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Legacy Kalender-Styles (für Modal)
   calendarCard: {
-    backgroundColor: lt.surface,
-    borderRadius: radius.xl,
-    padding: sp.l,
-    ...shadows.md,
+    gap: sp.m,
   },
   calendarHeader: {
     flexDirection: 'row',
@@ -1072,18 +1436,13 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   calendarExpandLabel: {
-    color: lt.primary,
+    color: lt.text,
     fontWeight: '600',
   },
   checkinCta: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: sp.m,
-    backgroundColor: lt.primary,
-    borderRadius: radius.xl,
-    paddingHorizontal: sp.l,
-    paddingVertical: sp.m,
-    ...shadows.md,
   },
   checkinCtaPressed: {
     transform: [{ scale: 0.99 }],
@@ -1111,12 +1470,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: sp.m,
-    backgroundColor: lt.surface,
-    borderRadius: radius.xl,
-    paddingHorizontal: sp.l,
-    paddingVertical: sp.m,
-    borderWidth: 1,
-    borderColor: 'rgba(16,104,74,0.2)',
   },
   pauseCtaPressed: {
     opacity: 0.9,
@@ -1139,6 +1492,59 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 2,
   },
+  cardFrame: {
+    width: '100%',
+    borderWidth: 1,
+    borderRadius: radius.xl + 6,
+    padding: spacing.s,
+    backgroundColor: 'rgba(0,0,0,0.02)',
+  },
+  // Neuer kompakter DayChip Style (iOS-Kalender-Look)
+  dayChipCompact: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  dayChipCompactSelected: {
+    // Kein zusätzlicher Container-Style nötig
+  },
+  dayChipPlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 4,
+    opacity: 0, // Unsichtbar aber behält Platz
+  },
+  dayNumberBox: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayNumberBoxSelected: {
+    borderWidth: 3,
+    borderColor: 'rgba(0,0,0,0.2)',
+  },
+  dayNumberCompact: {
+    fontSize: 22,
+    fontWeight: '600',
+  },
+  dayNumberCompactSelected: {
+    color: '#ffffff',
+    fontWeight: '700',
+  },
+  dayIndicatorDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginTop: 6,
+  },
+  dayIndicatorSpacer: {
+    width: 6,
+    height: 6,
+    marginTop: 6,
+  },
+  // Legacy DayChip Styles (für Kompatibilität)
   dayChip: {
     alignItems: 'center',
     flex: 1,
@@ -1175,6 +1581,85 @@ const styles = StyleSheet.create({
     height: 36,
     marginTop: 2,
   },
+  // Tasks Section Container
+  tasksSectionContainer: {
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    padding: sp.l,
+    gap: 0,
+    ...shadows.sm,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  tasksSectionDivider: {
+    height: 20,
+    marginVertical: sp.m,
+    marginHorizontal: -sp.l,
+    position: 'relative',
+  },
+  // Task Progress Card Styles
+  taskProgressCard: {
+    padding: 0,
+    gap: sp.m,
+    position: 'relative',
+  },
+  taskProgressHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  taskProgressTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sp.s,
+  },
+  taskProgressIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(16,104,74,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  taskProgressTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  xpBadgeNew: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: sp.m,
+    paddingVertical: sp.xs,
+    borderRadius: radius.pill,
+  },
+  xpBadgeNewText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  taskProgressBarContainer: {
+    gap: sp.xs,
+  },
+  taskProgressBarBg: {
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  taskProgressBarFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  taskProgressText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  taskProgressMotivation: {
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
+    paddingTop: sp.xs,
+  },
+  // Legacy Section Styles (für Kompatibilität)
   sectionHeaderRow: {
     marginTop: sp.s,
     flexDirection: 'row',
@@ -1201,8 +1686,63 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: sp.m,
   },
-  taskCard: {
+  taskScrollContainer: {
+    position: 'relative',
+    paddingVertical: 16, // Extra Platz für Zoom-Effekt
+    marginHorizontal: -sp.l, // Negative margin um den Container-Padding auszugleichen
+    marginTop: -20, // Overlap mit Divider für "hinter der Box" Effekt
+  },
+  taskScroll: {
+    overflow: 'visible',
+  },
+  taskScrollContent: {
+    gap: sp.m,
+    alignItems: 'center',
+    paddingVertical: 12, // Extra Platz für Zoom-Effekt
+  },
+  scrollIndicator: {
+    position: 'absolute',
+    top: '50%',
+    transform: [{ translateY: -20 }],
+    width: 40,
+    height: 40,
+    borderRadius: radius.pill,
+    backgroundColor: lt.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadows.sm,
+    borderWidth: 1,
+    borderColor: lt.border,
+    zIndex: 10,
+  },
+  scrollIndicatorLeft: {
+    left: sp.s,
+  },
+  scrollIndicatorRight: {
+    right: sp.s,
+  },
+  scrollIndicatorPressed: {
+    opacity: 0.7,
+    transform: [{ translateY: -20 }, { scale: 0.95 }],
+  },
+  taskFrameHorizontal: {
+    width: 270,
+    borderWidth: 1,
+    borderRadius: radius.l + 6,
+    padding: spacing.s,
+    backgroundColor: '#ffffff', // Solid white background
+    borderColor: lt.border,
+  },
+  taskFrame: {
     width: '48%',
+    borderWidth: 1,
+    borderRadius: radius.l + 6,
+    padding: spacing.s,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderColor: lt.border,
+  },
+  taskCard: {
+    width: '100%',
     borderRadius: radius.l,
   },
   taskCardBody: {
@@ -1230,16 +1770,18 @@ const styles = StyleSheet.create({
   taskInner: {
     borderRadius: radius.l,
     padding: sp.m,
-    paddingBottom: sp.xxl + sp.s,
+    paddingBottom: sp.l,
     gap: sp.s,
     borderWidth: 2,
-    borderColor: lt.primary,
+    borderColor: lt.border,
+    backgroundColor: '#ffffff', // Solid white background
     width: '100%',
     ...shadows.sm,
-    height: 280,
+    height: 260,
   },
   taskInnerBlur: {
-    borderColor: lt.primary,
+    borderColor: lt.border,
+    backgroundColor: '#ffffff', // Solid white background
   },
   taskInnerDone: {
     backgroundColor: lt.primary,
@@ -1319,12 +1861,12 @@ const styles = StyleSheet.create({
   playButtonRow: {
     alignItems: 'center',
     marginTop: sp.xs / 2,
-    marginBottom: sp.xxl * 2 + sp.m * 2,
+    marginBottom: sp.s,
   },
   taskActionLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: lt.primary,
+    color: lt.text,
     textAlign: 'center',
     width: '100%',
   },
@@ -1363,8 +1905,12 @@ const styles = StyleSheet.create({
   },
   modalWrap: {
     flex: 1,
-    backgroundColor: lt.bg,
+  },
+  modalContent: {
+    flex: 1,
     paddingHorizontal: sp.l,
+    gap: sp.l,
+    justifyContent: 'flex-start',
   },
   modalHead: {
     flexDirection: 'row',
@@ -1382,12 +1928,27 @@ const styles = StyleSheet.create({
     paddingVertical: sp.s,
   },
   modalBtnText: {
-    color: lt.primary,
+    color: lt.text,
     fontWeight: '600',
     fontSize: 14,
   },
   modalCard: {
     flex: 1,
+    width: '100%',
+    maxWidth: 520,
+    alignSelf: 'center',
+    alignItems: 'stretch',
+  },
+  modalCardSurface: {
+    flex: 1,
+    width: '100%',
+    padding: sp.l,
+    gap: sp.m,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.36)',
+  },
+  checkinForm: {
+    flex: 0,
   },
   statusToast: {
     position: 'absolute',
@@ -1497,6 +2058,13 @@ const styles = StyleSheet.create({
   },
   calendarMonthDayMuted: {
     backgroundColor: 'rgba(0,0,0,0.03)',
+  },
+  calendarMonthDayHidden: {
+    backgroundColor: 'transparent',
+    opacity: 0,
+  },
+  calendarMonthDayTextHidden: {
+    color: 'transparent',
   },
   calendarMonthDaySelected: {
     borderWidth: 2,
@@ -1642,5 +2210,23 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: lt.textMuted,
     fontStyle: 'italic',
+  },
+});
+
+const createTrackSectionStyles = (colors: ThemeColors, mode: ThemeMode) =>
+  StyleSheet.create({
+    section: {
+      width: '100%',
+      borderRadius: radius.xl,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: mode === 'dark' ? 'rgba(26,40,31,0.92)' : 'rgba(255,255,255,0.96)',
+      padding: spacing.l as number,
+      gap: spacing.m as number,
+      shadowColor: mode === 'dark' ? '#000' : colors.primary,
+      shadowOpacity: mode === 'dark' ? 0.35 : 0.12,
+      shadowRadius: 18,
+      shadowOffset: { width: 0, height: 10 },
+      elevation: 6,
   },
 });

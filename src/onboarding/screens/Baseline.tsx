@@ -4,7 +4,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { StepScreen } from '../components/StepScreen';
 import { Card } from '../components/Card';
 import { useOnboardingStore } from '../store';
-import { strings } from '../i18n/de';
+import { useStrings } from '../i18n/useStrings';
 import { useOnboardingStep } from '../hooks';
 import { colors, spacing, typography } from '../theme';
 import { onboardingSchemas } from '../utils/validators';
@@ -13,6 +13,7 @@ export const BaselineScreen: React.FC = () => {
   const { stepNumber, totalSteps, goNext, goBack } = useOnboardingStep('Baseline');
   const baseline = useOnboardingStore((state) => state.profile.baseline);
   const mergeProfile = useOnboardingStore((state) => state.mergeProfile);
+  const strings = useStrings();
 
   const update = (key: 'sleepQ' | 'mood' | 'stress', value: number) => {
     mergeProfile({

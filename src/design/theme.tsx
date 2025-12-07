@@ -1,37 +1,26 @@
-import React, { createContext, useContext } from 'react';
+import React from 'react';
 import { View, Text, Pressable, type ViewProps, type TextProps, type GestureResponderEvent, type DimensionValue } from 'react-native';
-import { colors, radius, radii, spacing, typography, type ColorMode, defaultMode } from './tokens';
+import { radius, radii, spacing, typography } from './tokens';
 import { FrostedSurface } from './FrostedSurface';
+import { useTheme as useAppTheme } from '../theme/useTheme';
 
 type Mode = 'light' | 'dark';
 
 type Theme = {
   mode: Mode;
-  // alias c for convenience in views (matches your snippet)
-  c: typeof colors.light;
-  colors: typeof colors.light;
+  c: ReturnType<typeof useAppTheme>['theme']['colors'];
+  colors: ReturnType<typeof useAppTheme>['theme']['colors'];
   spacing: typeof spacing;
   radii: typeof radii;
   radius: typeof radius;
   typography: typeof typography;
 };
 
-const ThemeContext = createContext<Theme>({
-  mode: (defaultMode as Mode) ?? 'light',
-  c: colors.light,
-  colors: colors.light,
-  spacing,
-  radii,
-  radius,
-  typography,
-});
-
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  // For MVP keep mode constant; structure allows future toggling
-  const mode: Mode = 'light';
-  const c = colors[mode];
-  const value: Theme = {
-    mode,
+export function useTheme(): Theme {
+  const { theme } = useAppTheme();
+  const c = theme.colors;
+  return {
+    mode: theme.mode,
     c,
     colors: c,
     spacing,
@@ -39,11 +28,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     radius,
     typography,
   };
-  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
-}
-
-export function useTheme() {
-  return useContext(ThemeContext);
 }
 
 // Primitives
@@ -95,8 +79,8 @@ export function Card({ children, style }: { children: React.ReactNode; style?: a
       style={[
         {
           padding: spacing.l,
-          borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.35)',
+          borderWidth: 2,
+          borderColor: c.primary,
         },
         style,
       ]}
@@ -108,10 +92,17 @@ export function Card({ children, style }: { children: React.ReactNode; style?: a
 
 export function PrimaryButton({ title, onPress }: { title: string; onPress: () => void }) {
   const { c, spacing, radius, typography } = useTheme();
+  const { haptics } = require('../services/haptics');
+  
+  const handlePress = () => {
+    haptics.trigger('general', 'selection');
+    onPress();
+  };
+  
   return (
     <Pressable
       accessibilityRole="button"
-      onPress={onPress}
+      onPress={handlePress}
       style={({ pressed }) => ({
         backgroundColor: c.primary,
         paddingVertical: spacing.m,
@@ -183,7 +174,7 @@ export function Box({ surface = 'bg', padded, rounded = 'md', style, ...rest }: 
 type TProps = TextProps & {
   variant?: keyof typeof typography.variants;
   muted?: boolean;
-  color?: keyof typeof colors.light | string;
+  color?: keyof Theme['colors'] | string;
 };
 
 export function T({ variant = 'body', muted, color, style, ...rest }: TProps) {
@@ -225,11 +216,20 @@ export function Button({ title, onPress, tone = 'primary', disabled, fullWidth }
     },
   } as const;
   const labelColor = tone === 'outline' ? theme.colors.text : theme.colors.surface;
+  const { haptics } = require('../services/haptics');
+  
+  const handlePress = () => {
+    if (!disabled) {
+      haptics.trigger('general', 'selection');
+      onPress();
+    }
+  };
+  
   return (
     <Pressable
       accessibilityRole="button"
       disabled={disabled}
-      onPress={onPress}
+      onPress={handlePress}
       style={{
         ...(base as any),
         ...(stylesByTone[tone] as any),

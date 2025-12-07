@@ -14,6 +14,8 @@ import {
   normalizeProfile,
   nowISO,
 } from './profileUtils';
+import { useApp } from './app';
+import { toDateKey } from '../lib/pause';
 export type Checkin = import('../lib/scales').Checkin;
 
 export type Mission = {
@@ -32,7 +34,6 @@ type Store = {
   checkins: Checkin[];
   missions: Mission[];
   milestones: Milestone[];
-  points: number;
   taskCompletions: Record<string, string[]>;
 
   addEntry: (e: Omit<DiaryEntry, 'id'>) => void;
@@ -61,7 +62,6 @@ export const useStore = create<Store>()(
       checkins: [],
       missions: [],
       milestones: [],
-      points: 0,
       taskCompletions: {},
 
       addEntry: (e) =>
@@ -115,7 +115,11 @@ export const useStore = create<Store>()(
           if (m.completedAt) return {} as any;
           const updated = [...s.missions];
           updated[idx] = { ...m, completedAt: new Date().toISOString() };
-          return { missions: updated, points: s.points + (m.points || 0) };
+          if (m.points && m.points > 0) {
+            const addXp = useApp.getState().addXp;
+            addXp(toDateKey(new Date()), m.points, 'mission', { label: m.title });
+          }
+          return { missions: updated };
         }),
 
       setMilestones: (items) => set({ milestones: items }),
@@ -127,7 +131,16 @@ export const useStore = create<Store>()(
           if (m.achievedAt) return {} as any;
           const updated = [...s.milestones];
           updated[idx] = { ...m, achievedAt: new Date().toISOString() };
-          return { milestones: updated, points: s.points + (m.points || 0) };
+          const reward = (m as any).xpReward ?? m.points ?? 0;
+          if (reward > 0) {
+            const addXp = useApp.getState().addXp;
+            addXp(toDateKey(new Date()), reward, 'milestone', {
+              milestoneId: m.id,
+              milestoneTitle: m.title,
+              label: m.title,
+            });
+          }
+          return { milestones: updated };
         }),
       markTaskCompleted: (taskId, dateISO) =>
         set((s) => {
@@ -144,7 +157,7 @@ export const useStore = create<Store>()(
         }),
     }),
     {
-      name: 'weedless-store',
+      name: 'hazeless-store',
       storage: createJSONStorage(() => AsyncStorage),
       version: 2,
       migrate: (persistedState: any, version) => {
@@ -187,7 +200,6 @@ export const useStore = create<Store>()(
         checkins: state.checkins,
         missions: state.missions,
         milestones: state.milestones,
-        points: state.points,
         taskCompletions: state.taskCompletions,
       }),
     }

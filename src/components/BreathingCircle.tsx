@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
-import { colors } from '../design/tokens';
+import { useThemedStyles } from '../theme/useThemedStyles';
+import type { ThemeColors } from '../theme/themes';
 
 type BreathingCircleProps = {
   size?: number;
@@ -8,6 +9,7 @@ type BreathingCircleProps = {
 
 export default function BreathingCircle({ size = 240 }: BreathingCircleProps) {
   const scale = useRef(new Animated.Value(0.8)).current;
+  const styles = useThemedStyles(createStyles);
 
   useEffect(() => {
     const animation = Animated.loop(
@@ -52,22 +54,23 @@ export default function BreathingCircle({ size = 240 }: BreathingCircleProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrapper: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  circle: {
-    width: '65%',
-    aspectRatio: 1,
-    borderRadius: 999,
-    backgroundColor: colors.light.primary,
-    opacity: 0.85,
-  },
-  ring: {
-    position: 'absolute',
-    borderWidth: 10,
-    borderColor: colors.light.primaryMuted,
-    opacity: 0.35,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    wrapper: {
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    circle: {
+      width: '65%',
+      aspectRatio: 1,
+      borderRadius: 999,
+      backgroundColor: colors.primary,
+      opacity: 0.85,
+    },
+    ring: {
+      position: 'absolute',
+      borderWidth: 10,
+      borderColor: colors.primaryMuted,
+      opacity: 0.35,
+    },
+  });

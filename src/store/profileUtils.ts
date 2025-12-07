@@ -1,4 +1,5 @@
 import type { Baseline, Profile } from '../types';
+import { getDeviceLocale } from '../onboarding/i18n';
 
 export const DEFAULT_GRAMS_PER_JOINT = 0.35;
 export const DEFAULT_PRICE_PER_GRAM = 10;
@@ -8,8 +9,25 @@ export const DEFAULT_AVG_SESSION_MINUTES = 12;
 
 export const nowISO = () => new Date().toISOString();
 
+/**
+ * Gets the device locale string (e.g., 'en-US', 'de-DE')
+ */
+export function getDeviceLocaleString(): string {
+  try {
+    const deviceLocale = Intl.DateTimeFormat().resolvedOptions().locale;
+    const lang = deviceLocale.split('-')[0].toLowerCase();
+    const region = deviceLocale.split('-')[1]?.toUpperCase() || (lang === 'en' ? 'US' : 'DE');
+    return `${lang}-${region}`;
+  } catch {
+    return DEFAULT_LOCALE;
+  }
+}
+
 export const normalizeProfile = (profile: Profile): Profile => {
-  const locale = profile.locale || DEFAULT_LOCALE;
+  // If no locale is set, detect device locale
+  // Only override if locale is explicitly empty/null/undefined, not if it's already set
+  // Preserve the locale if it's already set (even if it's an empty string, we want to keep user's choice)
+  const locale = (profile.locale && profile.locale.trim()) ? profile.locale : getDeviceLocaleString();
   const currency = profile.currency || DEFAULT_CURRENCY;
   const pauseStartISO = profile.pauseStartISO || profile.startedAt || nowISO();
   const baselineUnit = profile.baseline?.unit ?? 'g';

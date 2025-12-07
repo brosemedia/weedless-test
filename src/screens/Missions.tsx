@@ -1,14 +1,16 @@
-import React, { useMemo, useState } from 'react';
-import { ScrollView, View, Text, StyleSheet, Pressable, Linking } from 'react-native';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
+import { ScrollView, View, Text, StyleSheet, Pressable, Linking, Modal, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing, radius, shadows } from '../design/tokens';
-import { FrostedSurface } from '../design/FrostedSurface';
+import { colors, spacing, radius } from '../design/tokens';
 import { HEADER_TOTAL_HEIGHT } from '../components/AppHeader';
 import { Article, ARTICLES } from '../content/articles';
 import { useQuickActionsVisibility } from '../hooks/useQuickActionsVisibility';
 import { useHeaderTransparency } from '../hooks/useHeaderTransparency';
 import { useUiStore } from '../store/ui';
+import { FrostedSurface } from '../design/FrostedSurface';
+import { useTheme } from '../theme/useTheme';
+import { ThemedText, PrimaryButton } from '../design/theme';
+import type { ThemeColors, ThemeMode } from '../theme/themes';
 type TagTheme = {
   badgeBackground: string;
   badgeText: string;
@@ -110,32 +112,53 @@ const parseMarkdown = (input: string): MarkdownBlock[] => {
   return blocks;
 };
 
-type ArticleOverlayProps = {
-  article: Article;
-  index: number;
-  total: number;
-  onClose: () => void;
-  onPrev: () => void;
-  onNext: () => void;
-  hasPrev: boolean;
-  hasNext: boolean;
+type ArticleModalProps = {
+  visible: boolean;
+  article: Article | null;
   theme: TagTheme;
+  onClose: () => void;
 };
 
-function ArticleOverlay({
-  article,
-  index,
-  total,
-  onClose,
-  onPrev,
-  onNext,
-  hasPrev,
-  hasNext,
-  theme,
-}: ArticleOverlayProps) {
+function ArticleModal({ visible, article, theme, onClose }: ArticleModalProps) {
+  const { theme: appTheme } = useTheme();
+  const palette = appTheme.colors;
   const insets = useSafeAreaInsets();
-  useQuickActionsVisibility('knowledge-article', true);
-  const blocks = useMemo(() => parseMarkdown(article.content), [article.content]);
+  useQuickActionsVisibility('knowledge-article', visible);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          tension: 50,
+          friction: 7,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 0.9,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [visible, fadeAnim, scaleAnim]);
+
+  const blocks = useMemo(() => (article ? parseMarkdown(article.content) : []), [article]);
 
   const handleSourcePress = (url: string) => {
     Linking.openURL(url).catch(() => {
@@ -144,148 +167,190 @@ function ArticleOverlay({
     });
   };
 
+  if (!article) return null;
+
   const blocksToRender: MarkdownBlock[] = blocks.length
     ? blocks
     : [{ type: 'paragraph', text: article.content.trim() }];
 
   return (
-    <View style={styles.readerOverlay}>
-      <View
-        style={[
-          styles.readerSheet,
-          {
-            paddingTop: Math.max(spacing.xs, insets.top),
-            paddingBottom: insets.bottom + spacing.s,
-          },
-        ]}
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <Pressable
+        style={styles.modalBackdrop}
+        onPress={onClose}
+        accessible={false}
+        importantForAccessibility="no"
       >
-        <Pressable
-          onPress={onClose}
-          accessibilityRole="button"
-          accessibilityLabel="Artikel schließen"
-          style={({ pressed }) => [styles.readerCloseButton, pressed && styles.readerCloseButtonPressed]}
-        >
-          <Ionicons name='close' size={20} color={colors.light.text} />
-        </Pressable>
-        <ScrollView
-          style={styles.readerScroll}
-          contentContainerStyle={{
-            paddingBottom: insets.bottom + spacing.l,
-            gap: spacing.l,
-          }}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.readerHeader}>
-            <Text style={styles.readerMeta}>
-              {article.tag} • {article.readMinutes} Min Lesezeit
-            </Text>
-            <Text style={styles.readerTitle}>{article.title}</Text>
-          </View>
-          <View
+        <Animated.View
+          style={[
+            styles.modalBackdropOverlay,
+            {
+              opacity: fadeAnim,
+            },
+          ]}
+        />
+      </Pressable>
+      <View style={styles.modalContainer} pointerEvents="box-none">
+        <View style={{ flex: 1, justifyContent: 'flex-end' }} pointerEvents="box-none">
+          <Animated.View
             style={[
-              styles.readerHero,
-              { backgroundColor: theme.heroBackground, borderColor: theme.heroBorder },
+              styles.modalContent,
+              {
+                backgroundColor: palette.surface,
+                transform: [{ scale: scaleAnim }],
+                opacity: fadeAnim,
+                paddingBottom: Math.max(insets.bottom, spacing.xl as any),
+              },
             ]}
           >
-            <Text style={styles.readerHeroText}>{article.excerpt}</Text>
-          </View>
-          <View style={styles.readerContent}>
-            {blocksToRender.map((block, idx) => {
-              if (block.type === 'heading') {
-                return (
-                  <View key={`heading-${idx}`} style={styles.readerHeadingBlock}>
-                    <Text style={styles.readerSectionHeading}>{block.text}</Text>
-                    <View style={styles.readerHeadingDivider} />
-                  </View>
-                );
-              }
-              if (block.type === 'paragraph') {
-                return (
-                  <View key={`paragraph-${idx}`} style={styles.readerParagraphCard}>
-                    <Text style={styles.readerParagraphText}>{block.text}</Text>
-                  </View>
-                );
-              }
-              if (block.type === 'bullet') {
-                return (
-                  <View key={`bullet-${idx}`} style={[styles.readerParagraphCard, styles.readerListItem]}>
-                    <Text style={styles.readerParagraphText}>{block.text}</Text>
-                  </View>
-                );
-              }
-              if (block.type === 'numbered') {
-                return (
-                  <View
-                    key={`number-${idx}`}
-                    style={[styles.readerParagraphCard, styles.readerNumberedCard]}
-                  >
-                    <View style={styles.readerNumberBadge}>
-                      <Text style={styles.readerNumberBadgeText}>{block.index}</Text>
-                    </View>
-                    <View style={styles.readerNumberedText}>
-                      <Text style={styles.readerParagraphText}>{block.text}</Text>
-                    </View>
-                  </View>
-                );
-              }
-              if (block.type === 'quote') {
-                return (
-                  <View key={`quote-${idx}`} style={styles.readerQuote}>
-                    <Text style={styles.readerQuoteText}>{block.text}</Text>
-                  </View>
-                );
-              }
-              return null;
-            })}
-            {article.sources.length ? (
-              <View style={styles.readerSourcesCard}>
-                <Text style={styles.readerSectionHeading}>Quellen</Text>
-                {article.sources.map((source) => (
-                  <Pressable
-                    key={source.url}
-                    onPress={() => handleSourcePress(source.url)}
-                    style={({ pressed }) => [styles.readerSourceItem, pressed && styles.readerSourceItemPressed]}
-                  >
-                    <Ionicons name="link-outline" size={16} color={colors.light.primary} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.readerSourceLabel}>{source.label}</Text>
-                      <Text style={styles.readerSourceUrl}>{source.url}</Text>
-                    </View>
-                  </Pressable>
-                ))}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Schließen"
+              onPress={onClose}
+              style={({ pressed }) => [
+                styles.modalCloseButton,
+                {
+                  backgroundColor: pressed ? palette.border : 'transparent',
+                },
+              ]}
+              hitSlop={8}
+            >
+              <Text style={[styles.modalCloseIcon, { color: palette.text }]}>✕</Text>
+            </Pressable>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.modalScrollContent}
+              nestedScrollEnabled={true}
+              keyboardShouldPersistTaps="handled"
+              bounces={true}
+              scrollEnabled={true}
+            >
+              {/* Header */}
+              <View style={styles.modalHeader}>
+                <ThemedText kind="label" muted style={styles.modalTimeLabel}>
+                  {article.tag.toUpperCase()} • {article.readMinutes} MIN LESEZEIT
+                </ThemedText>
+                <ThemedText kind="h1" style={styles.modalTitle}>
+                  {article.title}
+                </ThemedText>
               </View>
-            ) : null}
-          </View>
-        </ScrollView>
-        <View style={styles.readerPagerSection}>
-          <View style={styles.readerPager}>
-            <Pressable
-              onPress={hasPrev ? onPrev : undefined}
-              disabled={!hasPrev}
-              accessibilityLabel="Vorheriger Artikel"
-              style={[styles.readerPagerButton, !hasPrev && styles.readerPagerButtonDisabled]}
-            >
-              <Ionicons name="chevron-back" size={18} color={hasPrev ? colors.light.text : colors.light.textMuted} />
-            </Pressable>
-            <Text style={styles.readerPagerLabel}>
-              Artikel {index + 1} von {total}
-            </Text>
-            <Pressable
-              onPress={hasNext ? onNext : undefined}
-              disabled={!hasNext}
-              accessibilityLabel="Nächster Artikel"
-              style={[styles.readerPagerButton, !hasNext && styles.readerPagerButtonDisabled]}
-            >
-              <Ionicons name="chevron-forward" size={18} color={hasNext ? colors.light.text : colors.light.textMuted} />
-            </Pressable>
-          </View>
+
+              {/* Excerpt */}
+              {article.excerpt ? (
+                <View
+                  style={[
+                    styles.modalExcerpt,
+                    {
+                      backgroundColor:
+                        appTheme.mode === 'dark' ? 'rgba(255,255,255,0.05)' : theme.heroBackground,
+                      borderColor: appTheme.mode === 'dark' ? palette.border : theme.heroBorder,
+                    },
+                  ]}
+                >
+                  <ThemedText style={[styles.modalExcerptText, { color: palette.text }]}>
+                    {article.excerpt}
+                  </ThemedText>
+                </View>
+              ) : null}
+
+              {/* Body */}
+              <View style={styles.modalBody}>
+                {blocksToRender.map((block, idx) => {
+                  if (block.type === 'heading') {
+                    return (
+                      <View key={`heading-${idx}`} style={styles.modalHeadingBlock}>
+                        <ThemedText kind="h2" style={styles.modalSectionHeading}>
+                          {block.text}
+                        </ThemedText>
+                      </View>
+                    );
+                  }
+                  if (block.type === 'paragraph') {
+                    return (
+                      <ThemedText key={`paragraph-${idx}`} style={styles.modalParagraph}>
+                        {block.text}
+                      </ThemedText>
+                    );
+                  }
+                  if (block.type === 'bullet') {
+                    return (
+                      <View key={`bullet-${idx}`} style={styles.modalBulletItem}>
+                        <Text style={[styles.modalBullet, { color: palette.text }]}>•</Text>
+                        <ThemedText style={styles.modalBulletText}>{block.text}</ThemedText>
+                      </View>
+                    );
+                  }
+                  if (block.type === 'numbered') {
+                    return (
+                      <View key={`number-${idx}`} style={styles.modalNumberedItem}>
+                        <View style={[styles.modalNumberBadge, { backgroundColor: palette.primary }]}>
+                          <Text style={[styles.modalNumberBadgeText, { color: palette.surface }]}>
+                            {block.index}
+                          </Text>
+                        </View>
+                        <ThemedText style={styles.modalNumberedText}>{block.text}</ThemedText>
+                      </View>
+                    );
+                  }
+                  if (block.type === 'quote') {
+                    return (
+                      <View key={`quote-${idx}`} style={[styles.modalQuote, { backgroundColor: palette.border }]}>
+                        <ThemedText style={styles.modalQuoteText}>{block.text}</ThemedText>
+                      </View>
+                    );
+                  }
+                  return null;
+                })}
+              </View>
+
+              {/* Sources */}
+              {article.sources && article.sources.length > 0 ? (
+                <View style={[styles.modalSourcesSection, { borderTopWidth: 1, borderTopColor: palette.border }]}>
+                  <ThemedText kind="label" muted style={styles.modalSourcesTitle}>
+                    Quellen (Auswahl)
+                  </ThemedText>
+                  {article.sources.map((source, idx) => (
+                    <Pressable
+                      key={idx}
+                      accessibilityRole="link"
+                      accessibilityLabel={`Quelle öffnen: ${source.label}`}
+                      onPress={() => handleSourcePress(source.url)}
+                      style={({ pressed }) => [
+                        styles.modalSourceItem,
+                        {
+                          backgroundColor: pressed ? palette.border : 'transparent',
+                        },
+                      ]}
+                    >
+                      <ThemedText style={styles.modalSourceLabel}>{source.label}</ThemedText>
+                      <Text style={[styles.modalSourceIcon, { color: palette.primary }]}>→</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+            </ScrollView>
+
+            {/* Close Button */}
+            <View style={[styles.modalFooter, { borderTopWidth: 1, borderTopColor: palette.border }]}>
+              <PrimaryButton title="Schließen" onPress={onClose} />
+            </View>
+          </Animated.View>
         </View>
       </View>
-    </View>
+    </Modal>
   );
 }
 
 export default function KnowledgeScreen() {
+  const { theme } = useTheme();
+  const palette = theme.colors;
+  const sectionStyles = useMemo(() => createKnowledgeSectionStyles(palette, theme.mode), [palette, theme.mode]);
   const insets = useSafeAreaInsets();
   const headerAccessoryHeight = useUiStore((s) => s.headerAccessoryHeight);
   const { handleScroll } = useHeaderTransparency();
@@ -299,90 +364,99 @@ export default function KnowledgeScreen() {
   const openArticle = (index: number) => setActiveArticleIndex(index);
   const closeArticle = () => setActiveArticleIndex(null);
 
-  const goPrev = () => {
-    setActiveArticleIndex((prev) => {
-      if (prev === null || prev <= 0) return prev;
-      return prev - 1;
-    });
-  };
-
-  const goNext = () => {
-    setActiveArticleIndex((prev) => {
-      if (prev === null || prev >= ARTICLES.length - 1) return prev;
-      return prev + 1;
-    });
-  };
-
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: palette.background }]}>
       <ScrollView
         style={{ backgroundColor: 'transparent' }}
         contentContainerStyle={[
           styles.container,
           {
             paddingTop: insets.top + HEADER_TOTAL_HEIGHT + headerAccessoryHeight + spacing.l,
-            paddingBottom: Math.max(spacing.xl, insets.bottom + spacing.m),
+            paddingBottom: Math.max(spacing.xl, insets.bottom + spacing.m) + 100, // Extra Padding für TabBar
           },
         ]}
         onScroll={handleScroll}
         scrollEventThrottle={16}
       >
-        <Text style={styles.title}>Wissen</Text>
-        <Text style={styles.intro}>
-          Hier findest du kompakte Artikel rund um Konsumreduktion, Gesundheit und Motivation. Die Themen
-          werden laufend erweitert – starte mit den Highlights unten.
-        </Text>
+        <View style={[sectionStyles.section, styles.introCard]}>
+          <Text
+            style={[
+              styles.intro,
+              { color: theme.mode === 'dark' ? palette.text : colors.light.textMuted },
+            ]}
+          >
+            Hier findest du kompakte Artikel rund um Konsumreduktion, Gesundheit und Motivation. Die Themen
+            werden laufend erweitert – starte mit den Highlights unten.
+          </Text>
+        </View>
 
         <View style={styles.list}>
           {ARTICLES.map((article, index) => {
-            const theme = TAG_THEMES[article.tag];
+            const tagTheme = TAG_THEMES[article.tag];
             return (
               <Pressable
                 key={article.id}
                 onPress={() => openArticle(index)}
                 style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
               >
-                <FrostedSurface
-                  borderRadius={radius.xl}
-                  intensity={85}
-                  fallbackColor="rgba(255,255,255,0.04)"
-                  overlayColor="rgba(255,255,255,0.18)"
-                  style={styles.cardInner}
-                >
-                  <View style={styles.metaRow}>
-                    <View style={[styles.tag, { backgroundColor: theme.badgeBackground }]}>
-                      <Text style={[styles.tagText, { color: theme.badgeText }]}>{article.tag}</Text>
+                <View style={[styles.cardFrame, { borderColor: palette.border }]}>
+                  <FrostedSurface
+                    borderRadius={radius.xl}
+                    intensity={85}
+                    fallbackColor={theme.mode === 'dark' ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.04)'}
+                    overlayColor={theme.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.18)'}
+                    style={[
+                      sectionStyles.section,
+                      styles.cardInner,
+                      theme.mode === 'dark' ? styles.cardGlassDark : styles.cardGlassLight,
+                    ]}
+                  >
+                    <View style={styles.metaRow}>
+                      <View style={[styles.tag, { backgroundColor: tagTheme.badgeBackground }]}>
+                        <Text style={[styles.tagText, { color: tagTheme.badgeText }]}>{article.tag}</Text>
+                      </View>
+                      <Text
+                        style={[
+                          styles.readingTime,
+                          { color: theme.mode === 'dark' ? palette.textMuted : colors.light.textMuted },
+                        ]}
+                      >
+                        {article.readMinutes} Min Lesezeit
+                      </Text>
                     </View>
-                    <Text style={styles.readingTime}>{article.readMinutes} Min Lesezeit</Text>
-                  </View>
-                  <Text style={styles.cardTitle} numberOfLines={2}>
-                    {article.title}
-                  </Text>
-                  <Text style={styles.cardDescription} numberOfLines={4}>
-                    {article.excerpt}
-                  </Text>
-                  <View style={styles.cardFooter}>
-                    <View style={styles.cardButton}>
-                      <Text style={styles.cardButtonText}>Mehr erfahren</Text>
+                    <Text
+                      style={[styles.cardTitle, { color: palette.text }]}
+                      numberOfLines={2}
+                    >
+                      {article.title}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.cardDescription,
+                        { color: theme.mode === 'dark' ? palette.textMuted : colors.light.text },
+                      ]}
+                      numberOfLines={4}
+                    >
+                      {article.excerpt}
+                    </Text>
+                    <View style={styles.cardFooter}>
+                      <View style={[styles.cardButton, { backgroundColor: palette.primary }]}>
+                        <Text style={[styles.cardButtonText, { color: palette.buttonText }]}>Mehr erfahren</Text>
+                      </View>
                     </View>
-                  </View>
-                </FrostedSurface>
+                  </FrostedSurface>
+                </View>
               </Pressable>
             );
           })}
         </View>
       </ScrollView>
-      {hasActiveArticle && activeArticle && (
-        <ArticleOverlay
+      {activeArticle && (
+        <ArticleModal
+          visible={hasActiveArticle}
           article={activeArticle}
-          index={activeArticleIndex as number}
-          total={ARTICLES.length}
-          onClose={closeArticle}
-          onPrev={goPrev}
-          onNext={goNext}
-          hasPrev={(activeArticleIndex as number) > 0}
-          hasNext={(activeArticleIndex as number) < ARTICLES.length - 1}
           theme={TAG_THEMES[activeArticle.tag]}
+          onClose={closeArticle}
         />
       )}
     </View>
@@ -399,11 +473,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     gap: spacing.m,
   },
-  title: {
-    fontSize: 30,
-    fontWeight: '800',
-    fontFamily: 'Inter-Bold',
-    color: colors.light.text,
+  introCard: {
+    paddingVertical: spacing.m,
   },
   intro: {
     fontSize: 15,
@@ -423,8 +494,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.l,
     gap: spacing.m,
+  },
+  cardFrame: {
+    borderWidth: 1,
+    borderRadius: radius.xl + 6,
+    padding: spacing.s,
+    backgroundColor: 'rgba(0,0,0,0.02)',
+  },
+  cardGlassLight: {
     borderWidth: 2,
     borderColor: colors.light.primary,
+    shadowColor: colors.light.primary,
+  },
+  cardGlassDark: {
+    borderWidth: 2,
+    borderColor: colors.dark.primary,
+    shadowColor: '#000',
   },
   cardPressed: {
     opacity: 0.95,
@@ -485,193 +570,187 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
     textTransform: 'uppercase',
   },
-  readerOverlay: {
+  modalBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.35)',
   },
-  readerSheet: {
+  modalBackdropOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContainer: {
     flex: 1,
-    backgroundColor: colors.light.surface,
-    paddingHorizontal: spacing.l,
-    gap: spacing.l,
+    justifyContent: 'flex-end',
   },
-  readerHeader: {
-    gap: spacing.xs,
+  modalContent: {
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    maxHeight: '90%',
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: -4 },
+    elevation: 10,
+    position: 'relative',
   },
-  readerMeta: {
-    fontSize: 14,
-    fontFamily: 'Inter-SemiBold',
-    color: colors.light.textMuted,
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
+  modalScrollContent: {
+    paddingHorizontal: spacing.xl as any,
+    paddingTop: spacing.xl as any,
   },
-  readerTitle: {
-    fontSize: 26,
-    fontFamily: 'Inter-Bold',
-    lineHeight: 32,
-    color: colors.light.text,
-    marginTop: spacing.xs,
-  },
-  readerCloseButton: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.pill,
-    backgroundColor: colors.light.surfaceMuted,
+  modalCloseButton: {
+    position: 'absolute',
+    top: spacing.l as any,
+    right: spacing.l as any,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    alignSelf: 'flex-end',
-    marginBottom: spacing.s,
+    zIndex: 10,
   },
-  readerCloseButtonPressed: {
-    opacity: 0.85,
+  modalCloseIcon: {
+    fontSize: 20,
+    fontWeight: '600',
   },
-  readerScroll: {
-    flex: 1,
+  modalHeader: {
+    marginBottom: spacing.l as any,
+    alignItems: 'center',
+    paddingTop: spacing.l as any,
+    position: 'relative',
   },
-  readerHero: {
-    borderRadius: radius.xl,
-    padding: spacing.xl,
+  modalTimeLabel: {
+    marginBottom: 4,
+    letterSpacing: 1,
+    textAlign: 'center',
+  },
+  modalTitle: {
+    fontSize: 24,
+    lineHeight: 32,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  modalExcerpt: {
+    borderRadius: radius.l,
+    padding: spacing.l as any,
     borderWidth: 1,
-    ...shadows.sm,
+    marginBottom: spacing.l as any,
   },
-  readerHeroText: {
-    fontSize: 18,
-    lineHeight: 26,
-    fontFamily: 'Inter-SemiBold',
-    color: colors.light.text,
-  },
-  readerContent: {
-    gap: spacing.m,
-  },
-  readerHeadingBlock: {
-    gap: spacing.xs,
-    marginTop: spacing.m,
-  },
-  readerSectionHeading: {
-    fontSize: 18,
-    fontFamily: 'Inter-Bold',
-    color: colors.light.navy,
-    letterSpacing: 0.2,
-  },
-  readerHeadingDivider: {
-    height: 2,
-    width: 42,
-    borderRadius: radius.pill,
-    backgroundColor: colors.light.primary,
-  },
-  readerParagraphCard: {
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    borderRadius: radius.xl,
-    paddingVertical: spacing.l,
-    paddingHorizontal: spacing.xl,
-    gap: spacing.s,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
-    alignSelf: 'stretch',
-    overflow: 'hidden',
-  },
-  readerParagraphText: {
+  modalExcerptText: {
     fontSize: 16,
-    lineHeight: 25,
-    color: colors.light.text,
-    fontFamily: 'Inter-Regular',
-    flexShrink: 1,
+    lineHeight: 24,
   },
-  readerListItem: {
-    gap: spacing.s,
+  modalBody: {
+    gap: spacing.l as any,
+    marginBottom: spacing.xl as any,
   },
-  readerNumberedCard: {
+  modalHeadingBlock: {
+    marginTop: spacing.m as any,
+    marginBottom: spacing.s as any,
+  },
+  modalSectionHeading: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  modalParagraph: {
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  modalBulletItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: spacing.m,
+    marginBottom: spacing.s as any,
   },
-  readerNumberedText: {
+  modalBullet: {
+    fontSize: 18,
+    marginRight: spacing.s as any,
+    marginTop: 2,
+  },
+  modalBulletText: {
     flex: 1,
+    fontSize: 16,
+    lineHeight: 24,
   },
-  readerNumberBadge: {
+  modalNumberedItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: spacing.m as any,
+    gap: spacing.m as any,
+  },
+  modalNumberBadge: {
     width: 28,
     height: 28,
     borderRadius: radius.pill,
-    backgroundColor: colors.light.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
-  readerNumberBadgeText: {
-    color: colors.light.surface,
-    fontFamily: 'Inter-Bold',
+  modalNumberBadgeText: {
+    fontSize: 14,
+    fontWeight: '700',
   },
-  readerQuote: {
-    paddingVertical: spacing.l,
-    paddingHorizontal: spacing.xl,
-    borderRadius: radius.xl,
-    backgroundColor: colors.light.surfaceMuted,
-    alignSelf: 'stretch',
-    overflow: 'hidden',
+  modalNumberedText: {
+    flex: 1,
+    fontSize: 16,
+    lineHeight: 24,
   },
-  readerQuoteText: {
+  modalQuote: {
+    padding: spacing.l as any,
+    borderRadius: radius.l,
+    marginVertical: spacing.m as any,
+    borderLeftWidth: 3,
+  },
+  modalQuoteText: {
     fontSize: 15,
     lineHeight: 22,
-    fontFamily: 'Inter-Regular',
     fontStyle: 'italic',
-    color: colors.light.textMuted,
   },
-  readerSourcesCard: {
-    marginTop: spacing.l,
-    padding: spacing.l,
-    borderRadius: radius.xl,
-    backgroundColor: colors.light.surface,
-    gap: spacing.m,
-    ...shadows.sm,
+  modalSourcesSection: {
+    marginTop: spacing.l as any,
+    marginBottom: spacing.m as any,
+    paddingTop: spacing.l as any,
   },
-  readerSourceItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.m,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.m,
-    borderRadius: radius.l,
-    backgroundColor: 'rgba(255,255,255,0.85)',
+  modalSourcesTitle: {
+    marginBottom: spacing.m as any,
+    letterSpacing: 1,
   },
-  readerSourceItemPressed: {
-    opacity: 0.7,
-  },
-  readerSourceLabel: {
-    fontSize: 14,
-    fontFamily: 'Inter-SemiBold',
-    color: colors.light.text,
-  },
-  readerSourceUrl: {
-    fontSize: 12,
-    fontFamily: 'Inter-Regular',
-    color: colors.light.textMuted,
-  },
-  readerPagerSection: {
-    marginTop: 0,
-    paddingTop: 0,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(0,0,0,0.15)',
-  },
-  readerPager: {
+  modalSourceItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: spacing.xs,
-    marginTop: 0,
+    paddingVertical: spacing.m as any,
+    paddingHorizontal: spacing.m as any,
+    borderRadius: radius.m,
+    marginBottom: spacing.xs as any,
   },
-  readerPagerLabel: {
-    fontSize: 14,
-    fontFamily: 'Inter-SemiBold',
-    color: colors.light.textMuted,
+  modalSourceLabel: {
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 20,
   },
-  readerPagerButton: {
-    width: 28,
-    height: 28,
-    borderRadius: radius.pill,
-    backgroundColor: colors.light.surfaceMuted,
-    alignItems: 'center',
-    justifyContent: 'center',
+  modalSourceIcon: {
+    fontSize: 18,
+    marginLeft: spacing.s as any,
   },
-  readerPagerButtonDisabled: {
-    opacity: 0.4,
+  modalFooter: {
+    paddingHorizontal: spacing.xl as any,
+    paddingTop: spacing.l as any,
+    paddingBottom: spacing.m as any,
   },
 });
+
+const createKnowledgeSectionStyles = (colors: ThemeColors, mode: ThemeMode) =>
+  StyleSheet.create({
+    section: {
+      width: '100%',
+      borderRadius: radius.xl,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: mode === 'dark' ? 'rgba(26,40,31,0.92)' : 'rgba(255,255,255,0.96)',
+      padding: spacing.l as number,
+      gap: spacing.m as number,
+      shadowColor: mode === 'dark' ? '#000' : colors.primary,
+      shadowOpacity: mode === 'dark' ? 0.35 : 0.12,
+      shadowRadius: 18,
+      shadowOffset: { width: 0, height: 10 },
+      elevation: 6,
+    },
+  });

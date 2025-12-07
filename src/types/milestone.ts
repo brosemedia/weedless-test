@@ -24,7 +24,7 @@ export type Milestone = {
   id: string;
   title: string;
   description?: string;
-  points: number;
+  xpReward: number;
   icon?: MilestoneIconKey;
   achievedAt?: string;
   kind: MilestoneKind;

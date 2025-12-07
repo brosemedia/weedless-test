@@ -1,12 +1,75 @@
 export type Goal = 'pause' | 'reduce' | 'quit' | 'track';
 export type Unit = 'day' | 'week' | 'month';
 export type ReminderNudgeLevel = 'low' | 'medium' | 'high';
+export type Gender = 'male' | 'female' | 'diverse' | 'none';
+
+export type ConsumptionMethod = 'joints' | 'bongs' | 'edibles' | 'vapes' | 'blunts' | 'capsules' | 'oils' | 'pipes' | 'dabs';
+
+export interface ConsumptionDetails {
+  // Für Joints/Blunts
+  jointsPerWeek?: number;
+  gramsPerJoint?: number;
+  // Für Bongs/Pipes
+  sessionsPerWeek?: number;
+  gramsPerSession?: number;
+  // Für Edibles
+  ediblesPerWeek?: number;
+  mgTHCPerPortion?: number;
+  // Für Vapes
+  vapeSessionsPerWeek?: number;
+  estimatedMgTHCPerSession?: number;
+  // Für Capsules
+  capsulesPerWeek?: number;
+  mgTHCPerCapsule?: number;
+  // Für Oils/Dabs
+  oilSessionsPerWeek?: number;
+  estimatedMgTHCPerOilSession?: number;
+}
+
+export interface PausePlan {
+  startDate: string; // ISO date string
+  durationDays: number;
+  reason?: string;
+  active: boolean;
+}
 
 export interface OnboardingProfile {
+  // Basis-Informationen
+  gender?: Gender;
+  dateOfBirth?: string | null; // ISO date string
   goal: Goal;
-  region: string;
-  currency: string;
-  consumption: {
+  
+  // Konsum-Häufigkeit
+  frequencyPerWeek: number; // 0-7
+  
+  // Währung & Ausgaben
+  currency: string; // 'EUR' | 'USD' | 'GBP' | etc.
+  weeklySpend: number; // Betrag in der gewählten Währung
+  
+  // Konsumformen & Details
+  consumptionMethods: ConsumptionMethod[];
+  consumptionDetails: Record<ConsumptionMethod, ConsumptionDetails>;
+  
+  // THC-Potenz
+  thcPotencyPercent: number; // 5-40% (oder höher für Wax etc.)
+  
+  // Impact & Timing
+  impactLevel: number; // 0-10 (0 = gar nicht, 10 = sehr stark)
+  firstUseTimeMinutes: number; // Minuten ab 0:00 (z.B. 720 = 12:00)
+  
+  // App-Nutzung
+  appPlans: string[]; // Multi-Select
+  unplannedUseReasons: string[]; // Multi-Select
+  
+  // Pause-Plan (nur wenn goal = 'pause')
+  pausePlan?: PausePlan;
+  cloudSyncConsent?: boolean;
+  subscriptionPlan?: 'monthly' | 'yearly' | 'none';
+  
+  // Legacy-Felder (für Kompatibilität, werden nach und nach entfernt)
+  birthYear?: number;
+  region?: string;
+  consumption?: {
     forms: string[];
     frequency: {
       unit: Unit;
@@ -21,6 +84,7 @@ export interface OnboardingProfile {
   };
   spend?: { unit: Unit; amount: number | null; goalNote?: string | null };
   quitDateISO?: string;
+  lastConsumptionISO?: string;
   pauseLengthDays?: number | null;
   reductionTargetPct?: number | null;
   triggers: string[];
@@ -32,24 +96,32 @@ export interface OnboardingProfile {
   legal: { ageConfirmed: boolean; disclaimerAccepted: boolean; regionNote?: string };
 }
 
-export type OnboardingMode = 'quick' | 'full';
-
 export type OnboardingStepId =
-  | 'WelcomeGoals'
-  | 'RegionCurrency'
-  | 'ConsumptionForms'
-  | 'FrequencyQuantity'
-  | 'PotencyOptional'
-  | 'SpendBudget'
+  | 'Welcome'
+  | 'DateOfBirth'
+  | 'Goal'
+  | 'Frequency'
+  | 'Currency'
+  | 'WeeklySpend'
+  | 'ConsumptionMethods'
+  | 'ConsumptionDetailsJoints'
+  | 'ConsumptionDetailsBongs'
+  | 'ConsumptionDetailsEdibles'
+  | 'ConsumptionDetailsVapes'
+  | 'ConsumptionDetailsBlunts'
+  | 'ConsumptionDetailsCapsules'
+  | 'ConsumptionDetailsOils'
+  | 'THCPotency'
+  | 'Gender'
+  | 'Impact'
   | 'QuitDate'
-  | 'Triggers'
-  | 'Baseline'
-  | 'Connections'
-  | 'Reminders'
-  | 'Motivation'
-  | 'Legal'
-  | 'Account'
-  | 'Summary';
+  | 'FirstUseTime'
+  | 'AppPlan'
+  | 'UnplannedUseReasons'
+  | 'PausePlan'
+  | 'Payment'
+  | 'CloudConsent'
+  | 'FinalSetup';
 
 export interface CostEstimateResult {
   value: number;

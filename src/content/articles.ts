@@ -119,7 +119,7 @@ Auch wenn Cannabis als „harmlos“ gilt, können Körper und Kopf reagieren, w
 ## Mythos: „Cannabis macht nicht süchtig“
 Cannabis ist nicht wie Heroin, aber Gewohnheiten + Emotionen + Toleranz können zusammen eine Abhängigkeit formen – mental und ein Stück weit körperlich. Das sagt nichts über deinen Charakter, sondern zeigt, wie gut dein Gehirn darin ist, Verknüpfungen zu lernen.
 
-## Weedless-Tipp: Mini-Check & kleines Experiment
+## Hazeless-Tipp: Mini-Check & kleines Experiment
 Such dir eine Situation, in der du fast automatisch kiffst (z. B. nach der Arbeit oder vorm Schlafen). Verschieb den Joint einmal um 30–60 Minuten oder lass ihn einmal weg. Trag in der App ein, wie du dich vorher und nachher fühlst und wie stark dein Verlangen ist (0–10). Beobachte, was dein innerer Autopilot erzählt. Oft merkst du, dass der Automatismus stärker ist als der echte Bedarf – ein wichtiges Aha.
 `,
     sources: [

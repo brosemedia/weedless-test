@@ -3,7 +3,7 @@ import { StepScreen } from '../components/StepScreen';
 import { Card } from '../components/Card';
 import { NumberField } from '../components/NumberField';
 import { useOnboardingStore } from '../store';
-import { strings } from '../i18n/de';
+import { useStrings } from '../i18n/useStrings';
 import { onboardingSchemas } from '../utils/validators';
 import { useOnboardingStep } from '../hooks';
 
@@ -11,6 +11,7 @@ export const PotencyOptionalScreen: React.FC = () => {
   const { stepNumber, totalSteps, goNext, goBack } = useOnboardingStep('PotencyOptional');
   const profile = useOnboardingStore((state) => state.profile);
   const mergeProfile = useOnboardingStore((state) => state.mergeProfile);
+  const strings = useStrings();
 
   const updatePotency = (value: number | null) => {
     mergeProfile({

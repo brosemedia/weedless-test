@@ -4,7 +4,7 @@ import { StepScreen } from '../components/StepScreen';
 import { Card } from '../components/Card';
 import { NumberField } from '../components/NumberField';
 import { UnitToggle } from '../components/UnitToggle';
-import { strings } from '../i18n/de';
+import { useStrings } from '../i18n/useStrings';
 import { useOnboardingStore } from '../store';
 import { useOnboardingStep } from '../hooks';
 import { colors, spacing, typography } from '../theme';
@@ -16,6 +16,7 @@ export const FrequencyQuantityScreen: React.FC = () => {
   const { stepNumber, totalSteps, goNext, goBack, mode } = useOnboardingStep('FrequencyQuantity');
   const profile = useOnboardingStore((state) => state.profile);
   const mergeProfile = useOnboardingStore((state) => state.mergeProfile);
+  const strings = useStrings();
 
   const forms = profile.consumption.forms;
   const displayedForms = mode === 'quick' ? forms.slice(0, 1) : forms;
@@ -76,6 +77,9 @@ export const FrequencyQuantityScreen: React.FC = () => {
               unitSuffix={unitLabels[frequency.unit]}
               helper={strings.frequency.helperJoints}
               unknownValue={DEFAULT_GRAMS_PER_JOINT}
+              quickValues={frequency.unit === 'day' ? [1, 2, 3, 5, 10] : frequency.unit === 'week' ? [5, 10, 15, 20, 30] : [20, 40, 60, 80, 100]}
+              step={1}
+              min={0}
             />
             <NumberField
               label={strings.frequency.gramsPerJoint}
@@ -84,6 +88,10 @@ export const FrequencyQuantityScreen: React.FC = () => {
               unitSuffix="g"
               helper={strings.frequency.helperJoints}
               unknownValue={DEFAULT_GRAMS_PER_JOINT}
+              quickValues={[0.2, 0.3, 0.5, 0.7, 1.0]}
+              step={0.1}
+              min={0.1}
+              max={5}
             />
           </View>
         ) : null}
@@ -93,6 +101,9 @@ export const FrequencyQuantityScreen: React.FC = () => {
             value={frequency.sessionsPerUnit ?? null}
             onChange={(value) => updateFrequency({ sessionsPerUnit: value ?? undefined })}
             unitSuffix={unitLabels[frequency.unit]}
+            quickValues={frequency.unit === 'day' ? [1, 2, 3, 5] : frequency.unit === 'week' ? [5, 10, 15, 20] : [20, 40, 60, 80]}
+            step={1}
+            min={0}
           />
         ) : null}
         {displayedForms.includes('bong') || displayedForms.includes('dab') ? (
@@ -101,6 +112,9 @@ export const FrequencyQuantityScreen: React.FC = () => {
             value={frequency.hitsPerUnit ?? null}
             onChange={(value) => updateFrequency({ hitsPerUnit: value ?? undefined })}
             unitSuffix={unitLabels[frequency.unit]}
+            quickValues={frequency.unit === 'day' ? [5, 10, 15, 20] : frequency.unit === 'week' ? [20, 40, 60, 100] : [100, 200, 300, 400]}
+            step={1}
+            min={0}
           />
         ) : null}
         {displayedForms.includes('edible') || displayedForms.includes('capsule') ? (
@@ -110,6 +124,9 @@ export const FrequencyQuantityScreen: React.FC = () => {
               value={frequency.portionsPerUnit ?? null}
               onChange={(value) => updateFrequency({ portionsPerUnit: value ?? undefined })}
               unitSuffix={unitLabels[frequency.unit]}
+              quickValues={frequency.unit === 'day' ? [1, 2, 3, 5] : frequency.unit === 'week' ? [5, 10, 15, 20] : [20, 40, 60, 80]}
+              step={1}
+              min={0}
             />
             <NumberField
               label={strings.frequency.mgPerPortion}
@@ -117,6 +134,10 @@ export const FrequencyQuantityScreen: React.FC = () => {
               onChange={(value) => updateFrequency({ mgPerPortion: value })}
               unitSuffix="mg"
               helper={strings.frequency.helperEdibles}
+              quickValues={[5, 10, 20, 50, 100]}
+              step={5}
+              min={0}
+              max={1000}
             />
           </>
         ) : null}

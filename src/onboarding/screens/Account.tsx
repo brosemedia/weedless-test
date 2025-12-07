@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { StepScreen } from '../components/StepScreen';
 import { Card } from '../components/Card';
 import { useOnboardingStore } from '../store';
-import { strings } from '../i18n/de';
+import { useStrings } from '../i18n/useStrings';
 import { useOnboardingStep } from '../hooks';
 import { onboardingSchemas } from '../utils/validators';
 import { colors, spacing, typography } from '../theme';
@@ -12,6 +12,7 @@ export const AccountScreen: React.FC = () => {
   const { stepNumber, totalSteps, goNext, goBack } = useOnboardingStep('Account');
   const account = useOnboardingStore((state) => state.profile.account);
   const mergeProfile = useOnboardingStore((state) => state.mergeProfile);
+  const strings = useStrings();
 
   const setMethod = (method: 'anonymous' | 'apple' | 'google') => {
     mergeProfile({ account: { method } });

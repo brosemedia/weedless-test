@@ -5,13 +5,16 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
+  Pressable,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { useAnimatedStyle, withSpring, useSharedValue } from 'react-native-reanimated';
 import { StepHeader } from './StepHeader';
-import { colors, radii, spacing, typography } from '../theme';
-import { strings } from '../i18n/de';
+import { OnboardingProgressBar } from './ProgressBar';
+import { useTheme } from '../../../src/theme/useTheme';
+import { spacing, radius, typography, touch } from '../../../src/design/tokens';
+import { useStrings } from '../i18n/useStrings';
 
 interface Props {
   title: string;
@@ -26,6 +29,8 @@ interface Props {
   children: React.ReactNode;
 }
 
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
 export const StepScreen: React.FC<Props> = ({
   title,
   subtitle,
@@ -37,42 +42,99 @@ export const StepScreen: React.FC<Props> = ({
   nextLabel,
   showBack = true,
   children,
-}) => (
-  <SafeAreaView style={styles.safeArea}>
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <View style={styles.container}>
-        <StepHeader title={title} subtitle={subtitle} step={step} total={total} />
-        <ScrollView style={styles.content} contentContainerStyle={styles.scrollInner}>
-          {children}
-        </ScrollView>
-        <View style={styles.footer}>
-          {showBack ? (
-            <TouchableOpacity style={[styles.button, styles.buttonSecondary]} onPress={onBack}>
-              <Text style={[styles.buttonText, styles.buttonTextSecondary]}>{strings.common.back}</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.buttonPlaceholder} />
-          )}
-          <TouchableOpacity
-            style={[styles.button, styles.buttonPrimary, nextDisabled && styles.buttonDisabled]}
-            disabled={nextDisabled}
-            onPress={onNext}
+}) => {
+  const strings = useStrings();
+  const { theme } = useTheme();
+  const colors = theme.colors;
+  const progress = step / total;
+
+  const buttonScale = useSharedValue(1);
+
+  const handlePressIn = () => {
+    buttonScale.value = withSpring(0.95);
+  };
+
+  const handlePressOut = () => {
+    buttonScale.value = withSpring(1);
+  };
+
+  const buttonAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+  }));
+
+  return (
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.bg }]}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={styles.container}>
+          {/* Progress Bar ganz oben */}
+          <View style={styles.progressContainer}>
+            <OnboardingProgressBar progress={progress} />
+          </View>
+
+          <StepHeader title={title} subtitle={subtitle} step={step} total={total} />
+          
+          <ScrollView
+            style={styles.content}
+            contentContainerStyle={styles.scrollInner}
+            showsVerticalScrollIndicator={false}
           >
-            <Text style={styles.buttonText}>{nextLabel ?? strings.common.next}</Text>
-          </TouchableOpacity>
+            {children}
+          </ScrollView>
+          
+          <View style={styles.footer}>
+            {showBack ? (
+              <AnimatedPressable
+                style={[
+                  styles.button,
+                  styles.buttonSecondary,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                  },
+                ]}
+                onPress={onBack}
+                onPressIn={handlePressIn}
+                onPressOut={handlePressOut}
+              >
+                <Text style={[styles.buttonText, { color: colors.text }]}>
+                  {strings.common.back}
+                </Text>
+              </AnimatedPressable>
+            ) : (
+              <View style={styles.buttonPlaceholder} />
+            )}
+            <AnimatedPressable
+              style={[
+                styles.button,
+                styles.buttonPrimary,
+                {
+                  backgroundColor: nextDisabled ? colors.border : colors.primary,
+                },
+                nextDisabled && styles.buttonDisabled,
+                buttonAnimatedStyle,
+              ]}
+              disabled={nextDisabled}
+              onPress={onNext}
+              onPressIn={handlePressIn}
+              onPressOut={handlePressOut}
+            >
+              <Text style={[styles.buttonText, { color: colors.surface }]}>
+                {nextLabel ?? strings.common.next}
+              </Text>
+            </AnimatedPressable>
+          </View>
         </View>
-      </View>
-    </KeyboardAvoidingView>
-  </SafeAreaView>
-);
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+};
 
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.background,
   },
   flex: {
     flex: 1,
@@ -81,40 +143,43 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: spacing.xl,
   },
+  progressContainer: {
+    paddingTop: spacing.s,
+    paddingBottom: spacing.m,
+  },
   content: {
     flex: 1,
   },
   scrollInner: {
     paddingBottom: spacing.xxl,
+    flexGrow: 1,
   },
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.lg,
-    gap: spacing.sm,
+    paddingVertical: spacing.l,
+    gap: spacing.m,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(0,0,0,0.1)',
   },
   button: {
     flex: 1,
-    borderRadius: radii.md,
-    paddingVertical: spacing.md,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.m,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: touch.minSize,
   },
   buttonPrimary: {
-    backgroundColor: colors.primary,
+    // backgroundColor wird dynamisch gesetzt
   },
   buttonSecondary: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    // backgroundColor und borderColor werden dynamisch gesetzt
   },
   buttonText: {
-    ...typography.body,
+    ...typography.variants.button,
     fontWeight: '600',
-    fontFamily: 'Inter-SemiBold',
-    color: colors.surface,
-  },
-  buttonTextSecondary: {
-    color: colors.text,
   },
   buttonDisabled: {
     opacity: 0.5,

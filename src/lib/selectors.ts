@@ -5,8 +5,22 @@ import { GRAMS_PER_JOINT_DEFAULT } from './tasks';
 const HOUR = 3_600_000;
 
 const gramsPerHour = (p: Profile) => {
-  if (p.gramsPerDayBaseline) return p.gramsPerDayBaseline / 24;
-  if (p.jointsPerDayBaseline) return (p.jointsPerDayBaseline * GRAMS_PER_JOINT_DEFAULT) / 24;
+  if (p.gramsPerDayBaseline != null && p.gramsPerDayBaseline > 0) {
+    const result = p.gramsPerDayBaseline / 24;
+    return result;
+  }
+  if (p.jointsPerDayBaseline != null && p.jointsPerDayBaseline > 0) {
+    const result = (p.jointsPerDayBaseline * GRAMS_PER_JOINT_DEFAULT) / 24;
+    return result;
+  }
+  // Debug: Log if both are missing
+  if (!p.gramsPerDayBaseline && !p.jointsPerDayBaseline) {
+    console.warn('gramsPerHour: Both baseline values are missing', {
+      gramsPerDayBaseline: p.gramsPerDayBaseline,
+      jointsPerDayBaseline: p.jointsPerDayBaseline,
+      profileKeys: Object.keys(p),
+    });
+  }
   return 0;
 };
 
@@ -32,9 +46,28 @@ const consumedJointsFromLog = (log: DayLog, gramsPerJointValue: number) => {
   return 0;
 };
 
-const aggregateLogTotals = (logs: Record<string, DayLog>, gramsPerJointValue: number) =>
+const dateKeyToTimestamp = (key: string): number | null => {
+  const [year, month, day] = key.split('-').map((part) => parseInt(part, 10));
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return null;
+  }
+  // Verwende Ende des Tages (23:59:59.999) als Timestamp
+  return new Date(year, month - 1, day, 23, 59, 59, 999).getTime();
+};
+
+const aggregateLogTotals = (
+  logs: Record<string, DayLog>,
+  gramsPerJointValue: number,
+  startTimestamp: number
+) =>
   Object.values(logs).reduce(
     (acc, log) => {
+      // Nur Logs berücksichtigen, die nach startTimestamp liegen
+      const logTimestamp = dateKeyToTimestamp(log.date);
+      if (logTimestamp === null || logTimestamp < startTimestamp) {
+        return acc;
+      }
+      
       acc.grams += consumedGramsFromLog(log, gramsPerJointValue);
       acc.joints += consumedJointsFromLog(log, gramsPerJointValue);
       acc.minutes += log.sessionMinutes ?? 0;
@@ -50,25 +83,102 @@ export const useStats = () => {
   if (!profile) return null;
 
   const now = Date.now();
-  const hours = (now - profile.startTimestamp) / HOUR;
+  const startTimestamp = Number.isFinite(profile.startTimestamp) ? profile.startTimestamp : now;
+  const moneyStartTimestamp = Number.isFinite(profile.moneyCalculationStartTimestamp)
+    ? (profile.moneyCalculationStartTimestamp as number)
+    : startTimestamp;
+  
+  // Berechne Stunden seit Start (kann negativ sein, wenn startTimestamp in der Zukunft liegt)
+  const hoursSinceStart = (now - startTimestamp) / HOUR;
+  const hours = Math.max(0, hoursSinceStart);
+  const hoursSinceMoneyStart = (now - moneyStartTimestamp) / HOUR;
+  const hoursMoney = Math.max(0, hoursSinceMoneyStart);
   const gramsPerJointValue = gramsPerJoint(profile);
-  const totals = aggregateLogTotals(logs, gramsPerJointValue);
+  // WICHTIG: Nur dayLogs nach startTimestamp berücksichtigen
+  const totals = aggregateLogTotals(logs, gramsPerJointValue, startTimestamp);
+  const moneyTotals = aggregateLogTotals(logs, gramsPerJointValue, moneyStartTimestamp);
 
-  const expectedGrams = hours * gramsPerHour(profile);
-  const savedGrams = Math.max(0, expectedGrams - totals.grams);
+  const gramsPerHourValue = gramsPerHour(profile);
+  
+  // Debug: Log einmalig wenn Werte 0 sind, aber Baseline vorhanden ist
+  const debugKey = `kpi-debug-${Math.floor(hours * 60)}`;
+  if (hours > 0.001 && gramsPerHourValue > 0 && !(global as any)[debugKey]) {
+    (global as any)[debugKey] = true;
+    const expectedGrams = hours * gramsPerHourValue;
+    const savedGrams = Math.max(0, expectedGrams - totals.grams);
+    if (savedGrams === 0 && expectedGrams > 0) {
+      console.warn('KPI-Debug: savedGrams ist 0, obwohl expectedGrams > 0:', {
+        hours,
+        gramsPerHourValue,
+        expectedGrams,
+        totalsGrams: totals.grams,
+        savedGrams,
+        startTimestamp: profile.startTimestamp,
+        now,
+        diff: now - profile.startTimestamp,
+      });
+    }
+  }
+  
+  // Warnung, wenn Baseline-Werte fehlen (nur einmal loggen)
+  if (gramsPerHourValue === 0 && hours > 0.01 && !(global as any)['baseline-warning-logged']) {
+    (global as any)['baseline-warning-logged'] = true;
+    console.warn('KPI-Berechnung: Baseline-Werte fehlen!', {
+      gramsPerDayBaseline: profile.gramsPerDayBaseline,
+      jointsPerDayBaseline: profile.jointsPerDayBaseline,
+      startTimestamp: profile.startTimestamp,
+      hours,
+    });
+  }
+  
+  const expectedGrams = hours * gramsPerHourValue;
+  const expectedGramsMoney = hoursMoney * gramsPerHourValue;
+  const savedGrams = Math.max(0, expectedGramsMoney - moneyTotals.grams);
+  const savedGramsMoney = Math.max(0, expectedGramsMoney - moneyTotals.grams);
+  
+  // Debug: Log einmalig wenn alle KPIs 0 sind, aber Baseline vorhanden ist
+  const allZeroKey = 'kpi-all-zero-debug';
+  if (
+    savedGrams === 0 &&
+    savedJoints === 0 &&
+    savedMoney === 0 &&
+    hours > 0.001 &&
+    gramsPerHourValue > 0 &&
+    !(global as any)[allZeroKey]
+  ) {
+    (global as any)[allZeroKey] = true;
+    console.warn('🔍 KPI-Debug: Alle Werte sind 0, obwohl Baseline vorhanden ist:', {
+      hours,
+      hoursSinceStart,
+      gramsPerHourValue,
+      expectedGrams,
+      totalsGrams: totals.grams,
+      savedGrams,
+      startTimestamp: profile.startTimestamp,
+      now,
+      diffMs: now - profile.startTimestamp,
+      diffHours: hoursSinceStart,
+      isFuture: hoursSinceStart < 0,
+      gramsPerDayBaseline: profile.gramsPerDayBaseline,
+      jointsPerDayBaseline: profile.jointsPerDayBaseline,
+      pricePerGram: profile.pricePerGram,
+    });
+  }
+  
   const jointsPerDayBaseline =
     profile.jointsPerDayBaseline ??
     (profile.gramsPerDayBaseline && gramsPerJointValue > 0
       ? profile.gramsPerDayBaseline / gramsPerJointValue
       : 0);
   const expectedJoints = jointsPerDayBaseline ? hours * (jointsPerDayBaseline / 24) : 0;
-  const savedJoints = Math.max(0, expectedJoints - totals.joints);
+  const expectedJointsMoney = jointsPerDayBaseline ? hoursMoney * (jointsPerDayBaseline / 24) : 0;
+  const savedJoints = Math.max(0, expectedJointsMoney - moneyTotals.joints);
 
   const pricePerGram =
     profile.pricePerGram ??
     (profile.costPerJoint ? profile.costPerJoint / GRAMS_PER_JOINT_DEFAULT : 0);
 
-  const savedMoney = Math.max(0, savedGrams * pricePerGram - totals.moneySpent);
+  const savedMoney = Math.max(0, savedGramsMoney * pricePerGram - moneyTotals.moneySpent);
 
   const expectedSessionMinutes =
     jointsPerDayBaseline > 0 && (profile.avgSessionMinutes ?? 0) > 0
@@ -90,8 +200,24 @@ export const useStats = () => {
         currency: 'EUR',
         maximumFractionDigits: 2,
       }).format(v),
-    fmtG: (g: number) => (g < 1 ? g.toFixed(3) : g.toFixed(1)),
-    fmtJ: (j: number) => (j < 10 ? j.toFixed(1) : Math.round(j).toString()),
+    fmtG: (g: number) => {
+      const fractionDigits = g < 1 ? 3 : 1;
+      return new Intl.NumberFormat(locale, {
+        minimumFractionDigits: fractionDigits,
+        maximumFractionDigits: fractionDigits,
+      }).format(g);
+    },
+    fmtJ: (j: number) => {
+      if (j < 10) {
+        return new Intl.NumberFormat(locale, {
+          minimumFractionDigits: 1,
+          maximumFractionDigits: 1,
+        }).format(j);
+      }
+      return new Intl.NumberFormat(locale, {
+        maximumFractionDigits: 0,
+      }).format(j);
+    },
     fmtMM: (m: number) => {
       const total = Math.floor(m);
       const hh = Math.floor(total / 60)

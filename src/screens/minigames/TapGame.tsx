@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HEADER_TOTAL_HEIGHT } from '../../components/AppHeader';
 import { useHeaderTransparency } from '../../hooks/useHeaderTransparency';
 import { useUiStore } from '../../store/ui';
+import { useQuickActionsVisibility } from '../../hooks/useQuickActionsVisibility';
 
 type Props = NativeStackScreenProps<MinigameStackParamList, 'TapGame'>;
 
@@ -61,6 +62,7 @@ export default function TapGame({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const headerAccessoryHeight = useUiStore((s) => s.headerAccessoryHeight);
   useHeaderTransparency();
+  useQuickActionsVisibility('tap-game', true);
   const [phase, setPhase] = useState<Phase>('idle');
   const [metrics, setMetrics] = useState<Metrics>(initialMetrics);
   const [target, setTarget] = useState<TargetState | null>(null);

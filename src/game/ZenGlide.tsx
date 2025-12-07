@@ -9,12 +9,10 @@ import {
   StatusBar,
   Text,
   useWindowDimensions,
-  Vibration,
   View,
   StyleSheet,
   Platform,
 } from 'react-native';
-import type { Audio } from 'expo-av';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -30,19 +28,16 @@ import { saveZenGlideResult, getZenGlideHistory } from '../storage/zenGlide';
 import { track } from '../onboarding/services/analytics';
 import { useApp } from '../store/app';
 import { TASK_XP } from '../lib/tasks';
+import { useUiStore } from '../store/ui';
+import { haptics } from '../services/haptics';
 
 const OBSTACLE_ASSET = require('../../assets/zenglide/obstacle.webp');
 const BACKGROUND_ASSET = require('../../assets/game_bg1.png');
-const FLAP_SOUND_ASSET = require('../../assets/Woosh.mp3');
 
 const AnimatedImage = Animated.createAnimatedComponent(Image);
 
 type Area = { width: number; height: number };
 
-const vibrate = () => {
-  if (Platform.OS === 'web') return;
-  Vibration.vibrate(120);
-};
 
 const formatDuration = (seconds: number) => {
   const whole = Math.max(0, Math.floor(seconds));
@@ -59,42 +54,38 @@ type ObstaclePairProps = {
 
 const ObstaclePair: React.FC<ObstaclePairProps> = ({ index, obstacles, useFallback }) => {
   const topStyle = useAnimatedStyle(() => {
+    'worklet';
     const data = obstacles.value[index];
     if (!data || !data.active) {
       return { opacity: 0 };
     }
-    const inset = HITBOX_SHRINK;
-    const width = Math.max(0, data.topRect.w - inset * 2);
-    const height = Math.max(0, data.topRect.h - inset * 2);
-    if (width <= 0 || height <= 0) {
+    if (data.topRect.h <= 0) {
       return { opacity: 0 };
     }
     return {
       opacity: 0.95,
-      left: data.topRect.x + inset,
-      top: data.topRect.y + inset,
-      width,
-      height,
+      left: data.topRect.x,
+      top: 0, // Immer ganz oben
+      width: data.topRect.w,
+      height: data.topRect.h, // Volle Höhe
     };
   });
 
   const bottomStyle = useAnimatedStyle(() => {
+    'worklet';
     const data = obstacles.value[index];
     if (!data || !data.active) {
       return { opacity: 0 };
     }
-    const inset = HITBOX_SHRINK;
-    const width = Math.max(0, data.bottomRect.w - inset * 2);
-    const height = Math.max(0, data.bottomRect.h - inset * 2);
-    if (width <= 0 || height <= 0) {
+    if (data.bottomRect.h <= 0) {
       return { opacity: 0 };
     }
     return {
       opacity: 0.95,
-      left: data.bottomRect.x + inset,
-      top: data.bottomRect.y + inset,
-      width,
-      height,
+      left: data.bottomRect.x,
+      top: data.bottomRect.y, // Startet bei gapBottomEdge
+      width: data.bottomRect.w,
+      height: data.bottomRect.h, // Volle Höhe bis ganz nach unten
     };
   });
 
@@ -152,42 +143,40 @@ type ObstacleHitboxPairProps = {
 
 const ObstacleHitboxPair: React.FC<ObstacleHitboxPairProps> = ({ index, obstacles }) => {
   const topStyle = useAnimatedStyle(() => {
+    'worklet';
     const data = obstacles.value[index];
     if (!data || !data.active) {
       return { opacity: 0 };
     }
-    const inset = HITBOX_SHRINK;
-    const width = Math.max(0, data.topRect.w - inset * 2);
-    const height = Math.max(0, data.topRect.h - inset * 2);
-    if (width <= 0 || height <= 0) {
+    if (data.topRect.h <= 0) {
       return { opacity: 0 };
     }
+    // Hitbox genau so groß wie visuelles Objekt
     return {
       opacity: 0.9,
-      left: data.topRect.x + inset,
-      top: data.topRect.y + inset,
-      width,
-      height,
+      left: data.topRect.x,
+      top: 0, // Immer ganz oben für Hitbox
+      width: data.topRect.w,
+      height: data.topRect.h, // Volle Höhe
     };
   });
 
   const bottomStyle = useAnimatedStyle(() => {
+    'worklet';
     const data = obstacles.value[index];
     if (!data || !data.active) {
       return { opacity: 0 };
     }
-    const inset = HITBOX_SHRINK;
-    const width = Math.max(0, data.bottomRect.w - inset * 2);
-    const height = Math.max(0, data.bottomRect.h - inset * 2);
-    if (width <= 0 || height <= 0) {
+    if (data.bottomRect.h <= 0) {
       return { opacity: 0 };
     }
+    // Hitbox genau so groß wie visuelles Objekt
     return {
       opacity: 0.9,
-      left: data.bottomRect.x + inset,
-      top: data.bottomRect.y + inset,
-      width,
-      height,
+      left: data.bottomRect.x,
+      top: data.bottomRect.y,
+      width: data.bottomRect.w,
+      height: data.bottomRect.h, // Volle Höhe
     };
   });
 
@@ -224,7 +213,8 @@ export default function ZenGlide() {
   const physicsStepper = useRef(makeStepper()).current;
   const rafRef = useRef<number | null>(null);
   const lastFrameTimeRef = useRef<number | null>(null);
-  const flapSoundRef = useRef<Audio.Sound | null>(null);
+  const hideQuickActions = useUiStore((s) => s.hideQuickActions);
+  const showQuickActions = useUiStore((s) => s.showQuickActions);
 
   const refreshLeaderboard = useCallback(async () => {
     try {
@@ -266,7 +256,7 @@ export default function ZenGlide() {
     reduceMotion,
     onGameOver: useCallback(
       async (result: SessionResult) => {
-        if (feedbackEnabled) vibrate();
+        if (feedbackEnabled) haptics.trigger('game', 'error');
         const bestScore = topRuns.length > 0 ? topRuns[0].score : 0;
         const achievedHighScore = result.score > bestScore;
         setIsNewHighScore(achievedHighScore);
@@ -294,18 +284,29 @@ export default function ZenGlide() {
 
   const onFrame = useCallback(
     (timestamp: number) => {
+      if (!isRunning) {
+        rafRef.current = requestAnimationFrame(onFrame);
+        return;
+      }
       if (lastFrameTimeRef.current == null) {
         lastFrameTimeRef.current = timestamp;
+        rafRef.current = requestAnimationFrame(onFrame);
+        return;
       }
       const deltaMs = Math.max(0, timestamp - (lastFrameTimeRef.current ?? timestamp));
       lastFrameTimeRef.current = timestamp;
+      
+      // Cap delta time für stabile Frame-Rate
       const frameDt = Math.min(deltaMs / 1000, MAX_FRAME_DT);
+      
+      // Verwende requestAnimationFrame für bessere Performance
       physicsStepper(frameDt, (dt) => {
         step(dt);
       });
+      
       rafRef.current = requestAnimationFrame(onFrame);
     },
-    [physicsStepper, step]
+    [physicsStepper, step, isRunning]
   );
 
   useEffect(() => {
@@ -369,10 +370,12 @@ export default function ZenGlide() {
   useFocusEffect(
     useCallback(() => {
       StatusBar.setHidden(true, 'fade');
+      hideQuickActions('zenglide');
       return () => {
         StatusBar.setHidden(false, 'fade');
+        showQuickActions('zenglide');
       };
-    }, [])
+    }, [hideQuickActions, showQuickActions])
   );
 
   useEffect(() => {
@@ -402,39 +405,6 @@ export default function ZenGlide() {
     setAwaitingStart(true);
   }, [config.width, config.height, reset, hasLayout]);
 
-  useEffect(() => {
-    if (Platform.OS === 'web') {
-      return () => undefined;
-    }
-    let cancelled = false;
-    (async () => {
-      try {
-        const expoAv = await import('expo-av');
-        const audioModule: Audio | undefined =
-          (expoAv as any)?.Audio ?? (expoAv as any)?.default?.Audio;
-        const soundFactory = audioModule?.Sound;
-        if (!soundFactory?.createAsync) {
-          throw new Error('Audio.Sound unavailable');
-        }
-        const { sound } = await soundFactory.createAsync(FLAP_SOUND_ASSET);
-        if (cancelled) {
-          await sound.unloadAsync();
-          return;
-        }
-        flapSoundRef.current = sound;
-      } catch (error) {
-        console.warn('[ZenGlide] flap sound load failed', error);
-      }
-    })();
-    return () => {
-      cancelled = true;
-      const current = flapSoundRef.current;
-      if (current) {
-        current.unloadAsync().catch(() => undefined);
-        flapSoundRef.current = null;
-      }
-    };
-  }, []);
 
   const onLayout = useCallback(
     (event: LayoutChangeEvent) => {
@@ -454,27 +424,15 @@ export default function ZenGlide() {
     []
   );
 
-  const playFlapSound = useCallback(() => {
-    const sound = flapSoundRef.current;
-    if (!sound) return;
-    sound.replayAsync().catch((error) => {
-      console.warn('[ZenGlide] flap sound play failed', error);
-    });
-  }, []);
-
-  const flapWithSound = useCallback(() => {
-    flap();
-    playFlapSound();
-  }, [flap, playFlapSound]);
 
   const beginSession = useCallback(() => {
     setAwaitingStart(false);
     setLastResult(null);
     scoreRef.current = 0;
     start();
-    flapWithSound();
+    flap();
     track('zenglide_opened');
-  }, [flapWithSound, start]);
+  }, [flap, start]);
 
   const handlePlayAgain = useCallback(() => {
     beginSession();
@@ -491,8 +449,8 @@ export default function ZenGlide() {
       beginSession();
       return;
     }
-    flapWithSound();
-  }, [awaitingStart, beginSession, flapWithSound]);
+    flap();
+  }, [awaitingStart, beginSession, flap]);
 
   const toggleHitboxes = useCallback(() => {
     setShowHitboxes((current) => !current);
@@ -509,12 +467,16 @@ export default function ZenGlide() {
     [handleTap]
   );
 
-  const playerStyle = useAnimatedStyle(() => ({
-    top: playerY.value,
-    left: config.playerX,
-  }));
+  const playerStyle = useAnimatedStyle(() => {
+    'worklet';
+    return {
+      top: playerY.value,
+      left: config.playerX,
+    };
+  });
 
   const playerHitboxStyle = useAnimatedStyle(() => {
+    'worklet';
     const circle = playerCircle.value;
     const diameter = circle.r * 2;
     return {

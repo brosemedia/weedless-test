@@ -12,7 +12,9 @@ import {
   startOfMonth,
   startOfWeek,
 } from 'date-fns';
-import { colors, radius, spacing } from '../design/tokens';
+import { radius, spacing } from '../design/tokens';
+import { useThemedStyles } from '../theme/useThemedStyles';
+import type { ThemeColors } from '../theme/themes';
 
 type Props = {
   visible: boolean;
@@ -77,6 +79,7 @@ export const DateTimePickerModal: React.FC<Props> = ({
   const maxDate = maximumDate ?? new Date();
   const minDate = minimumDate;
   const clampedValue = clampToBounds(date, minDate, maxDate);
+  const styles = useThemedStyles(createStyles);
 
   return (
     <Modal transparent animationType="fade" visible={visible} onRequestClose={onDismiss}>
@@ -144,6 +147,7 @@ const FallbackCalendarPicker: React.FC<FallbackCalendarPickerProps> = ({
   const today = new Date();
   const canGoNextMonth = isBefore(visibleMonth, startOfMonth(upperBound));
   const canGoPrevMonth = !lowerBound || isAfter(visibleMonth, startOfMonth(lowerBound));
+  const styles = useThemedStyles(createStyles);
 
   useEffect(() => {
     const normalized = clampToBounds(value, lowerBound, upperBound);
@@ -277,8 +281,15 @@ const FallbackCalendarPicker: React.FC<FallbackCalendarPickerProps> = ({
           </Pressable>
         </View>
         <View style={styles.timeControls}>
-          <TimeStepper label="Stunde" value={selected.getHours()} onIncrement={() => adjustHour(1)} onDecrement={() => adjustHour(-1)} />
           <TimeStepper
+            styles={styles}
+            label="Stunde"
+            value={selected.getHours()}
+            onIncrement={() => adjustHour(1)}
+            onDecrement={() => adjustHour(-1)}
+          />
+          <TimeStepper
+            styles={styles}
             label="Minute"
             value={selected.getMinutes()}
             onIncrement={() => adjustMinute(5)}
@@ -290,14 +301,187 @@ const FallbackCalendarPicker: React.FC<FallbackCalendarPickerProps> = ({
   );
 };
 
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    modalBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.6)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: spacing.l,
+    },
+    modalCard: {
+      width: '100%',
+      backgroundColor: colors.surface,
+      borderRadius: radius.l,
+      padding: spacing.m,
+      shadowColor: '#000',
+      shadowOpacity: 0.18,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 10,
+    },
+    modalActions: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      gap: spacing.m,
+      marginTop: spacing.m,
+    },
+    modalActionButton: {
+      paddingHorizontal: spacing.m,
+      paddingVertical: spacing.s,
+    },
+    modalActionText: {
+      color: colors.primary,
+      fontWeight: '600',
+    },
+    modalActionTextMuted: {
+      color: colors.textMuted,
+    },
+    nativePicker: {
+      width: '100%',
+      height: Platform.OS === 'ios' ? 220 : undefined,
+    },
+    fallbackPicker: {
+      width: '100%',
+      gap: spacing.m,
+    },
+    fallbackSummary: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    calendarHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    calendarHeaderButton: {
+      padding: spacing.s,
+    },
+    calendarHeaderTitle: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    weekdayRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+    },
+    weekdayLabel: {
+      flex: 1,
+      textAlign: 'center',
+      fontSize: 12,
+      color: colors.textMuted,
+    },
+    weekRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+    },
+    dayCell: {
+      flex: 1,
+      margin: 2,
+      borderRadius: radius.s,
+      paddingVertical: 10,
+      alignItems: 'center',
+    },
+    dayCellText: {
+      fontSize: 15,
+      color: colors.text,
+    },
+    dayCellMutedText: {
+      color: colors.textMuted,
+    },
+    dayCellMuted: {
+      opacity: 0.5,
+    },
+    dayCellSelected: {
+      backgroundColor: colors.primary,
+    },
+    dayCellSelectedText: {
+      color: '#fff',
+      fontWeight: '600',
+    },
+    dayCellToday: {
+      borderWidth: 1,
+      borderColor: colors.primary,
+    },
+    dayCellDisabled: {
+      opacity: 0.3,
+    },
+    timeSection: {
+      gap: spacing.s,
+    },
+    timeSectionHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    timeSectionLabel: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    timeControls: {
+      flexDirection: 'row',
+      gap: spacing.m,
+    },
+    stepper: {
+      flex: 1,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.m,
+      padding: spacing.s,
+    },
+    stepperLabel: {
+      fontSize: 12,
+      textTransform: 'uppercase',
+      color: colors.textMuted,
+      marginBottom: 6,
+    },
+    stepperRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    stepperButton: {
+      paddingHorizontal: spacing.s,
+      paddingVertical: spacing.xs,
+    },
+    stepperButtonText: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: colors.primary,
+    },
+    stepperValue: {
+      fontSize: 20,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    quickActionButton: {
+      paddingHorizontal: spacing.s,
+      paddingVertical: spacing.xs,
+    },
+    quickActionText: {
+      color: colors.primary,
+      fontWeight: '600',
+    },
+    disabledButton: {
+      opacity: 0.3,
+    },
+  });
+
+type DatePickerStyles = ReturnType<typeof createStyles>;
+
 type TimeStepperProps = {
+  styles: DatePickerStyles;
   label: string;
   value: number;
   onIncrement: () => void;
   onDecrement: () => void;
 };
 
-const TimeStepper: React.FC<TimeStepperProps> = ({ label, value, onIncrement, onDecrement }) => (
+const TimeStepper: React.FC<TimeStepperProps> = ({ styles, label, value, onIncrement, onDecrement }) => (
   <View style={styles.stepper}>
     <Text style={styles.stepperLabel}>{label}</Text>
     <View style={styles.stepperRow}>
@@ -311,174 +495,5 @@ const TimeStepper: React.FC<TimeStepperProps> = ({ label, value, onIncrement, on
     </View>
   </View>
 );
-
-const styles = StyleSheet.create({
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.l,
-  },
-  modalCard: {
-    width: '100%',
-    backgroundColor: '#fff',
-    borderRadius: radius.l,
-    padding: spacing.m,
-    shadowColor: '#000',
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 10,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: spacing.m,
-    marginTop: spacing.m,
-  },
-  modalActionButton: {
-    paddingHorizontal: spacing.m,
-    paddingVertical: spacing.s,
-  },
-  modalActionText: {
-    color: colors.light.primary,
-    fontWeight: '600',
-  },
-  modalActionTextMuted: {
-    color: colors.light.textMuted,
-  },
-  nativePicker: {
-    width: '100%',
-    height: Platform.OS === 'ios' ? 220 : undefined,
-  },
-  fallbackPicker: {
-    width: '100%',
-    gap: spacing.m,
-  },
-  fallbackSummary: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.light.text,
-  },
-  calendarHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  calendarHeaderButton: {
-    padding: spacing.s,
-  },
-  calendarHeaderTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.light.text,
-  },
-  weekdayRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  weekdayLabel: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 12,
-    color: colors.light.textMuted,
-  },
-  weekRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  dayCell: {
-    flex: 1,
-    margin: 2,
-    borderRadius: radius.s,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  dayCellText: {
-    fontSize: 15,
-    color: colors.light.text,
-  },
-  dayCellMutedText: {
-    color: colors.light.textMuted,
-  },
-  dayCellMuted: {
-    opacity: 0.5,
-  },
-  dayCellSelected: {
-    backgroundColor: colors.light.primary,
-  },
-  dayCellSelectedText: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  dayCellToday: {
-    borderWidth: 1,
-    borderColor: colors.light.primary,
-  },
-  dayCellDisabled: {
-    opacity: 0.3,
-  },
-  timeSection: {
-    gap: spacing.s,
-  },
-  timeSectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  timeSectionLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.light.text,
-  },
-  timeControls: {
-    flexDirection: 'row',
-    gap: spacing.m,
-  },
-  stepper: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: colors.light.border,
-    borderRadius: radius.m,
-    padding: spacing.s,
-  },
-  stepperLabel: {
-    fontSize: 12,
-    textTransform: 'uppercase',
-    color: colors.light.textMuted,
-    marginBottom: 6,
-  },
-  stepperRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  stepperButton: {
-    paddingHorizontal: spacing.s,
-    paddingVertical: spacing.xs,
-  },
-  stepperButtonText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.light.primary,
-  },
-  stepperValue: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: colors.light.text,
-  },
-  quickActionButton: {
-    paddingHorizontal: spacing.s,
-    paddingVertical: spacing.xs,
-  },
-  quickActionText: {
-    color: colors.light.primary,
-    fontWeight: '600',
-  },
-  disabledButton: {
-    opacity: 0.3,
-  },
-});
 
 export const hasCalendarNativeSupport = hasNativeDatePicker;

@@ -7,7 +7,7 @@ import { DateTimePickerModal } from '../../components/DateTimePickerModal';
 interface Props {
   label: string;
   value: Date;
-  mode: 'date' | 'time';
+  mode: 'date' | 'time' | 'datetime';
   onChange: (next: Date) => void;
 }
 
@@ -29,7 +29,13 @@ export const DateTimeField: React.FC<Props> = ({ label, value, mode, onChange })
     <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
       <TouchableOpacity style={styles.button} onPress={openPicker}>
-        <Text style={styles.value}>{mode === 'time' ? formatTime(value) : formatDate(value)}</Text>
+        <Text style={styles.value}>
+          {mode === 'time' 
+            ? formatTime(value) 
+            : mode === 'datetime' 
+            ? `${formatDate(value)} ${formatTime(value)}`
+            : formatDate(value)}
+        </Text>
       </TouchableOpacity>
       <DateTimePickerModal
         visible={pickerVisible}

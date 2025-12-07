@@ -124,3 +124,7 @@ export const touch = {
 
 export type ColorMode = keyof typeof colors;
 export const defaultMode: ColorMode = 'light';
+
+export const applyThemeToLegacyColors = (next: Partial<typeof colors.light>) => {
+  Object.assign(colors.light as Record<string, any>, next);
+};

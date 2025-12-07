@@ -9,7 +9,7 @@ export default function Philosophy() {
       <View style={{ padding: spacing.l, gap: spacing.m }}>
         <ThemedText kind="h2">Unsere Philosophie</ThemedText>
         <ThemedText>
-          Weedless unterstützt dich respektvoll und evidenzbasiert. Wir setzen auf
+          Hazeless unterstützt dich respektvoll und evidenzbasiert. Wir setzen auf
           realistische Ziele, positive Verstärkung und transparente Daten. Du
           bestimmst das Tempo – wir liefern Struktur und Motivation.
         </ThemedText>

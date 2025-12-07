@@ -14,7 +14,7 @@ export type SessionSummary = {
   timestamp: number;
 };
 
-const KEY = 'weedless.stroop.sessions';
+const KEY = 'hazeless.stroop.sessions';
 const MAX_SESSIONS = 50;
 
 const isSessionSummary = (value: unknown): value is SessionSummary => {

@@ -1,18 +1,35 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Dimensions, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Dimensions, ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import BreathingCircle from '../components/BreathingCircle';
 import { colors, spacing, radius } from '../design/tokens';
 import { useMonotonicTicker } from '../../hooks/useMonotonicTicker';
+import { useQuickActionsVisibility } from '../hooks/useQuickActionsVisibility';
 import { useApp } from '../store/app';
 import { TASK_XP } from '../lib/tasks';
+import { useAppStrings } from '../i18n/useStrings';
+import { useNavigation } from '@react-navigation/native';
+
+// BackButton entfernt – der native Stack-Header hat bereits einen Zurück-Button mit Blur-Effekt
+
+const AMBIENT_BG = require('../../assets/ambient_bg.png');
 
 export default function BreathScreen() {
   const insets = useSafeAreaInsets();
   const ticker = useMonotonicTicker(4);
-  const top = Math.max(spacing.s, insets.top - spacing.xxl);
-  const bottom = Math.max(insets.bottom, spacing.l);
+  useQuickActionsVisibility('breath-screen', true);
+  
+  // Höhe für den nativen transparenten Stack-Header
+  const headerHeight = 44;
+  const top = insets.top + headerHeight + spacing.l;
+  const bottom = Math.max(insets.bottom + spacing.l, spacing.xl);
+  const strings = useAppStrings();
+  const navigation = useNavigation();
+  
+  useEffect(() => {
+    navigation.setOptions({ title: strings.breath.title });
+  }, [navigation, strings.breath.title]);
   const todayKey = useMemo(() => {
     const now = new Date();
     return now.toISOString().slice(0, 10);
@@ -82,22 +99,27 @@ export default function BreathScreen() {
     }
   }, [elapsed, isCompleted, markTaskDone, todayKey]);
 
-  const statusLabel = isCompleted || hasCelebratedRef.current ? 'Erledigt' : 'Offen';
+  const statusLabel = isCompleted || hasCelebratedRef.current ? strings.breath.done : strings.breath.open;
   const statusStyle = isCompleted || hasCelebratedRef.current ? styles.statusDone : styles.statusOpen;
 
   return (
-    <SafeAreaView style={[styles.safeArea, { paddingTop: top, paddingBottom: bottom }]}>
-      <ConfettiCannon
-        ref={confettiRef}
-        count={150}
-        fadeOut
-        autoStart={false}
-        origin={{ x: Dimensions.get('window').width / 2, y: 0 }}
-      />
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+    <ImageBackground source={AMBIENT_BG} style={styles.backgroundImage} resizeMode="cover">
+      <View style={[styles.safeArea, { paddingTop: top, paddingBottom: bottom }]}>
+        <ConfettiCannon
+          ref={confettiRef}
+          count={150}
+          fadeOut
+          autoStart={false}
+          origin={{ x: Dimensions.get('window').width / 2, y: 0 }}
+        />
+        <ScrollView
+          contentContainerStyle={[styles.container, { paddingBottom: bottom + spacing.l }]}
+          showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+        >
+        {/* BackButton entfernt – nativer Header übernimmt */}
         <View style={styles.timerRow}>
           <View style={styles.timerColumn}>
-            <Text style={styles.title}>Atemübung</Text>
             <Text style={styles.timerValue} accessibilityLiveRegion="polite">
               {formattedTime}
             </Text>
@@ -107,7 +129,7 @@ export default function BreathScreen() {
               onPress={toggleTimer}
               style={[styles.circleButton, isRunning ? styles.buttonActive : undefined]}
               accessibilityRole="button"
-              accessibilityLabel={isRunning ? 'Stopp' : 'Start Atemübung'}
+              accessibilityLabel={isRunning ? strings.breath.stop : strings.breath.start}
             >
               <Text style={[styles.buttonLabel, isRunning ? styles.buttonLabelActive : undefined]}>
                 {isRunning ? '❚❚' : '▶'}
@@ -117,7 +139,7 @@ export default function BreathScreen() {
               onPress={handleReset}
               style={styles.circleButton}
               accessibilityRole="button"
-              accessibilityLabel="Timer zurücksetzen"
+              accessibilityLabel={strings.breath.reset}
             >
               <Text style={styles.buttonLabel}>↺</Text>
             </Pressable>
@@ -127,23 +149,29 @@ export default function BreathScreen() {
           <Text style={styles.statusText}>{statusLabel}</Text>
         </View>
         <View style={styles.header}>
-          <Text style={styles.subtitle}>4 Sekunden einatmen, 2 halten, 6 ausatmen, 2 entspannen.</Text>
+          <Text style={styles.subtitle}>{strings.breath.instruction}</Text>
         </View>
-        <View accessible accessibilityLabel="Animierter Atemkreis" accessibilityRole="image">
+        <View accessible accessibilityLabel={strings.breath.breathingCircle} accessibilityRole="image">
           <BreathingCircle />
         </View>
         <View style={styles.instructions}>
-          <Text style={styles.stepLabel}>{"So funktioniert's"}</Text>
-          <Text style={styles.stepText}>- Atme ein, wenn der Kreis größer wird.</Text>
-          <Text style={styles.stepText}>- Halte kurz inne.</Text>
-          <Text style={styles.stepText}>- Atme langsam aus, wenn der Kreis kleiner wird.</Text>
+          <Text style={styles.stepLabel}>{strings.breath.howItWorks}</Text>
+          <Text style={styles.stepText}>{strings.breath.step1}</Text>
+          <Text style={styles.stepText}>{strings.breath.step2}</Text>
+          <Text style={styles.stepText}>{strings.breath.step3}</Text>
         </View>
       </ScrollView>
-    </SafeAreaView>
+      </View>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
   safeArea: {
     flex: 1,
     backgroundColor: 'transparent',
@@ -153,6 +181,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     gap: spacing.m,
   },
+  // backButtonWrap entfernt – nicht mehr benötigt
   timerRow: {
     width: '100%',
     flexDirection: 'row',
@@ -226,11 +255,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     shadowRadius: 20,
     elevation: 4,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: colors.light.text,
   },
   subtitle: {
     fontSize: 16,

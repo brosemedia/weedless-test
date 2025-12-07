@@ -2,17 +2,18 @@ import { useCallback, useEffect, useMemo } from 'react';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { track } from './services/analytics';
-import { useOnboardingStore, getStepIdsForMode } from './store';
-import type { OnboardingMode, OnboardingStepId } from './types';
+import { useOnboardingStore, getStepIdsForGoal } from './store';
+import type { OnboardingStepId } from './types';
 import type { OnboardingStackParamList } from './steps';
 
 export const useOnboardingStep = (stepId: OnboardingStepId) => {
   const navigation = useNavigation<NativeStackNavigationProp<OnboardingStackParamList>>();
   const route = useRoute();
-  const mode = useOnboardingStore((state) => state.mode);
+  const goal = useOnboardingStore((state) => state.profile.goal);
+  const consumptionMethods = useOnboardingStore((state) => state.profile.consumptionMethods);
   const hydrated = useOnboardingStore((state) => state.hydrated);
   const setCurrentStepIndex = useOnboardingStore((state) => state.setCurrentStepIndex);
-  const steps = useMemo(() => getStepIdsForMode(mode), [mode]);
+  const steps = useMemo(() => getStepIdsForGoal(goal, consumptionMethods), [goal, consumptionMethods]);
   const currentIndex = steps.indexOf(stepId);
 
   useEffect(() => {
@@ -38,8 +39,8 @@ export const useOnboardingStep = (stepId: OnboardingStepId) => {
 
   useFocusEffect(
     useCallback(() => {
-      track('onboarding_step_viewed', { step_id: stepId, mode });
-    }, [mode, stepId])
+      track('onboarding_step_viewed', { step_id: stepId, goal });
+    }, [goal, stepId])
   );
 
   return {
@@ -50,8 +51,5 @@ export const useOnboardingStep = (stepId: OnboardingStepId) => {
     totalSteps: steps.length,
     isFirstStep: currentIndex <= 0,
     isLastStep: currentIndex >= steps.length - 1,
-    mode,
   };
 };
-
-export const useStepIds = (mode: OnboardingMode) => useMemo(() => getStepIdsForMode(mode), [mode]);

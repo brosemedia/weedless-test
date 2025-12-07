@@ -1,10 +1,19 @@
-import React, { Fragment } from 'react';
-import { View, ScrollView, Pressable, Text, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, ScrollView, Pressable, Text, StyleSheet, Alert, InteractionManager } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ThemedView } from '../../design/theme';
-import { colors, spacing, radius } from '../../design/tokens';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ThemedView, useTheme } from '../../design/theme';
+import { spacing, radius } from '../../design/tokens';
 import type { SettingsStackParamList } from './SettingsNavigator';
-const CARD_COLOR = '#D99A25';
+import { useAuth } from '../../contexts/AuthContext';
+import type { NavigationProp } from '@react-navigation/native';
+import type { RootStackParamList } from '../../../App';
+import { useAppStrings } from '../../i18n/useStrings';
+import { fetchCurrentProfile } from '../../api/profile';
+import { supabase } from '../../lib/supabase';
+
+// Header-Höhe für native transparent header
+const NATIVE_HEADER_HEIGHT = 44;
 
 type RowProps = {
   label: string;
@@ -12,9 +21,12 @@ type RowProps = {
   onPress: () => void;
   isFirst: boolean;
   isLast: boolean;
+  textColor: string;
+  pressedColor: string;
+  borderColor: string;
 };
 
-function Row({ label, icon, onPress, isFirst, isLast }: RowProps) {
+function Row({ label, icon, onPress, isFirst, isLast, textColor, pressedColor, borderColor }: RowProps) {
   return (
     <Pressable
       onPress={onPress}
@@ -22,52 +34,291 @@ function Row({ label, icon, onPress, isFirst, isLast }: RowProps) {
         styles.row,
         isFirst && styles.rowFirst,
         isLast && styles.rowLast,
-        pressed && styles.rowPressed,
+        pressed && { backgroundColor: pressedColor },
+        !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: borderColor },
       ]}
     >
       <Text style={styles.rowIcon}>{icon}</Text>
-      <Text style={styles.rowLabel}>{label}</Text>
+      <Text style={[styles.rowLabel, { color: textColor }]}>{label}</Text>
     </Pressable>
   );
 }
 
-const sections: Array<
-  Array<{
-    label: string;
-    icon: string;
-    navigateTo: keyof SettingsStackParamList;
-  }>
-> = [
-  [
-    { label: 'Profil & Onboarding', icon: '🧾', navigateTo: 'ProfileAndOnboarding' },
-    { label: 'Benachrichtigungen', icon: '🔔', navigateTo: 'Notifications' },
-    { label: 'Sprache', icon: '🌐', navigateTo: 'Language' },
-  ],
-  [{ label: 'Daten exportieren', icon: '📤', navigateTo: 'ExportData' }],
-];
+// Sections will be defined inside the component to use translations
 
 type Props = NativeStackScreenProps<SettingsStackParamList, 'SettingsHome'>;
 
+type AccountInfo = {
+  email: string;
+  hasSync: boolean;
+  lastSyncTime: string | null;
+};
+
 export default function SettingsHome({ navigation }: Props) {
+  const { signOut, user } = useAuth();
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [accountInfo, setAccountInfo] = useState<AccountInfo | null>(null);
+  const strings = useAppStrings();
+  const theme = useTheme();
+  const insets = useSafeAreaInsets();
+
+  // Load account info and sync status
+  useEffect(() => {
+    const loadAccountInfo = async () => {
+      if (!user) {
+        setAccountInfo(null);
+        return;
+      }
+
+      try {
+        // Get email from user
+        const email = user.email || 'Unbekannt';
+
+        // Check if user has sync consent and get last sync time
+        const profile = await fetchCurrentProfile();
+        const hasSync = profile?.consent_server_storage ?? false;
+
+        // Get last sync time from app_profiles
+        let lastSyncTime: string | null = null;
+        if (hasSync) {
+          const { data: appProfile } = await supabase
+            .from('app_profiles')
+            .select('updated_at')
+            .eq('user_id', user.id)
+            .maybeSingle();
+
+          if (appProfile?.updated_at) {
+            const syncDate = new Date(appProfile.updated_at);
+            const now = new Date();
+            const diffMs = now.getTime() - syncDate.getTime();
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMs / 3600000);
+            const diffDays = Math.floor(diffMs / 86400000);
+
+            if (diffMins < 1) {
+              lastSyncTime = 'Gerade eben';
+            } else if (diffMins < 60) {
+              lastSyncTime = `Vor ${diffMins} Min.`;
+            } else if (diffHours < 24) {
+              lastSyncTime = `Vor ${diffHours} Std.`;
+            } else if (diffDays === 1) {
+              lastSyncTime = 'Gestern';
+            } else if (diffDays < 7) {
+              lastSyncTime = `Vor ${diffDays} Tagen`;
+            } else {
+              lastSyncTime = syncDate.toLocaleDateString('de-DE', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+              });
+            }
+          }
+        }
+
+        setAccountInfo({
+          email,
+          hasSync,
+          lastSyncTime,
+        });
+      } catch (error) {
+        console.error('Error loading account info:', error);
+        // Fallback: just show email
+        setAccountInfo({
+          email: user.email || 'Unbekannt',
+          hasSync: false,
+          lastSyncTime: null,
+        });
+      }
+    };
+
+    loadAccountInfo();
+  }, [user]);
+
+  const sections: Array<
+    Array<{
+      label: string;
+      icon: string;
+      navigateTo?: keyof SettingsStackParamList;
+      onPress?: () => void;
+    }>
+  > = [
+    [
+      { label: strings.settings.profileAndOnboarding, icon: '🧾', navigateTo: 'ProfileAndOnboarding' },
+      { label: strings.settings.notifications, icon: '🔔', navigateTo: 'Notifications' },
+      { label: strings.settings.haptics || 'Haptisches Feedback', icon: '📳', navigateTo: 'Haptics' },
+      { label: strings.settings.language, icon: '🌐', navigateTo: 'Language' },
+    ],
+    [
+      { label: strings.settings.privacyConsents, icon: '🔒', navigateTo: 'PrivacyConsents' },
+      { label: strings.settings.deleteAccount, icon: '🗑️', navigateTo: 'DeleteAccount' },
+    ],
+  ];
+
+  const handleLogout = () => {
+    Alert.alert(
+      strings.settings.logoutConfirmTitle,
+      strings.settings.logoutConfirmMessage,
+      [
+        {
+          text: strings.settings.cancel,
+          style: 'cancel',
+        },
+        {
+          text: strings.settings.logoutConfirm,
+          style: 'destructive',
+          onPress: async () => {
+            setLoggingOut(true);
+            try {
+              // Navigate to login screen FIRST, before signOut to avoid React hooks errors
+              // This ensures components unmount before stores are reset
+              const rootNavigation = navigation.getParent() as NavigationProp<RootStackParamList> | null;
+              if (rootNavigation) {
+                rootNavigation.reset({
+                  index: 0,
+                  routes: [{ name: 'Login' }],
+                });
+              }
+              
+              // Wait for navigation and interactions to complete, then sign out
+              // signOut() will reset all stores automatically (see AuthContext)
+              // Using InteractionManager ensures components have unmounted before stores are reset
+              InteractionManager.runAfterInteractions(async () => {
+                try {
+                  await signOut();
+                } catch (signOutError) {
+                  console.error('Error signing out:', signOutError);
+                  // Don't show alert here as we're already navigating away
+                }
+              });
+            } catch (error) {
+              console.error('Error during logout:', error);
+              Alert.alert(strings.settings.logoutError, strings.settings.logoutErrorMessage);
+              setLoggingOut(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleAccountPress = () => {
+    Alert.alert(
+      'Account',
+      'Was möchtest du tun?',
+      [
+        {
+          text: 'Abbrechen',
+          style: 'cancel',
+        },
+        {
+          text: 'Ausloggen',
+          onPress: handleLogout,
+        },
+        {
+          text: 'Account wechseln',
+          onPress: async () => {
+            await handleLogout();
+            // After logout, user can login with different account
+          },
+        },
+      ]
+    );
+  };
+
+  // Logout is now handled in the account card above
+  const allSections = sections;
+
   return (
     <ThemedView style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={styles.content}>
-        {sections.map((items, sectionIndex) => (
-          <View key={sectionIndex} style={styles.card}>
-            <View style={styles.cardInner}>
-              {items.map((item, index) => (
-                <Fragment key={item.navigateTo}>
-                  <Row
-                    label={item.label}
-                    icon={item.icon}
-                    onPress={() => navigation.navigate(item.navigateTo)}
-                    isFirst={index === 0}
-                    isLast={index === items.length - 1}
-                  />
-                  {index < items.length - 1 ? <View style={styles.separator} /> : null}
-                </Fragment>
-              ))}
+      <ScrollView 
+        contentContainerStyle={[
+          styles.content, 
+          { 
+            paddingTop: insets.top + NATIVE_HEADER_HEIGHT + (spacing.l as any),
+            paddingBottom: Math.max(spacing.l as any, insets.bottom || 0) + 100, // Extra Padding für TabBar
+          }
+        ]}
+      >
+        {/* Account Info Section */}
+        {user && (
+          <Pressable
+            onPress={handleAccountPress}
+            style={[
+              styles.accountCard,
+              {
+                backgroundColor: theme.mode === 'dark' ? 'rgba(40,50,45,0.8)' : 'rgba(255,255,255,0.95)',
+                borderColor: theme.colors.border,
+              },
+            ]}
+          >
+            <View style={styles.accountHeader}>
+              <Text style={[styles.accountIcon]}>👤</Text>
+              <View style={styles.accountInfo}>
+                <Text style={[styles.accountEmail, { color: theme.colors.text }]}>
+                  {accountInfo?.email ?? user.email ?? 'Account'}
+                </Text>
+                {accountInfo?.hasSync ? (
+                  <Text style={[styles.accountSyncStatus, { color: theme.colors.muted }]}>
+                    {accountInfo?.lastSyncTime
+                      ? `Zuletzt synchronisiert: ${accountInfo.lastSyncTime}`
+                      : 'Cloud-Sync aktiv'}
+                  </Text>
+                ) : (
+                  <Text style={[styles.accountSyncStatus, { color: theme.colors.muted }]}>
+                    Cloud-Sync nicht aktiviert
+                  </Text>
+                )}
+              </View>
             </View>
+            <View style={styles.accountActions}>
+              <Pressable
+                onPress={handleLogout}
+                style={({ pressed }) => [
+                  styles.logoutButton,
+                  {
+                    borderColor: theme.colors.border,
+                    backgroundColor: pressed
+                      ? theme.mode === 'dark'
+                        ? 'rgba(255,255,255,0.08)'
+                        : 'rgba(0,0,0,0.04)'
+                      : 'transparent',
+                  },
+                ]}
+              >
+                <Text style={[styles.logoutButtonText, { color: theme.colors.text }]}>Ausloggen</Text>
+              </Pressable>
+              <Text style={[styles.accountHint, { color: theme.colors.muted }]}>
+                Tippen für Account-Details
+              </Text>
+            </View>
+          </Pressable>
+        )}
+
+        {allSections.map((items, sectionIndex) => (
+          // Minimalistischer Container ohne GlassSurface-Effekte
+          <View
+            key={sectionIndex}
+            style={[
+              styles.card,
+              { 
+                backgroundColor: theme.mode === 'dark' ? 'rgba(40,50,45,0.8)' : 'rgba(255,255,255,0.95)',
+                borderColor: theme.colors.border,
+              }
+            ]}
+          >
+            {items.map((item, index) => (
+              <Row
+                key={item.navigateTo || item.label}
+                label={item.label}
+                icon={item.icon}
+                onPress={item.onPress || (() => item.navigateTo && navigation.navigate(item.navigateTo))}
+                isFirst={index === 0}
+                isLast={index === items.length - 1}
+                textColor={theme.colors.text}
+                pressedColor={theme.mode === 'light' ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.08)'}
+                borderColor={theme.colors.border}
+              />
+            ))}
           </View>
         ))}
       </ScrollView>
@@ -77,24 +328,64 @@ export default function SettingsHome({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   content: {
-    padding: spacing.l,
+    paddingHorizontal: spacing.l,
     gap: spacing.l,
+  },
+  accountCard: {
+    borderRadius: radius.l,
+    borderWidth: 1,
+    padding: spacing.m,
+    marginBottom: spacing.s,
+  },
+  accountHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.m,
+    marginBottom: spacing.xs,
+  },
+  accountIcon: {
+    fontSize: 32,
+  },
+  accountInfo: {
+    flex: 1,
+  },
+  accountEmail: {
+    fontSize: 16,
+    fontWeight: '600',
+    fontFamily: 'Inter-SemiBold',
+    marginBottom: 2,
+  },
+  accountSyncStatus: {
+    fontSize: 13,
+    fontFamily: 'Inter-Regular',
+  },
+  accountHint: {
+    fontSize: 12,
+    fontFamily: 'Inter-Regular',
+    marginTop: spacing.xs,
+    fontStyle: 'italic',
+  },
+  accountActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing.s,
+    gap: spacing.s,
+  },
+  logoutButton: {
+    paddingHorizontal: spacing.l,
+    paddingVertical: spacing.s,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+  },
+  logoutButtonText: {
+    fontSize: 14,
+    fontFamily: 'Inter-SemiBold',
   },
   card: {
     borderRadius: radius.l,
-    overflow: 'hidden',
-    shadowColor: 'rgba(166, 90, 46, 0.35)',
-    shadowOpacity: 1,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 4,
-    backgroundColor: 'transparent',
-  },
-  cardInner: {
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-    borderRadius: radius.l,
-    backgroundColor: CARD_COLOR,
+    overflow: 'hidden',
   },
   row: {
     flexDirection: 'row',
@@ -105,15 +396,12 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   rowFirst: {
-    borderTopLeftRadius: radius.l,
-    borderTopRightRadius: radius.l,
+    borderTopLeftRadius: radius.l - 1,
+    borderTopRightRadius: radius.l - 1,
   },
   rowLast: {
-    borderBottomLeftRadius: radius.l,
-    borderBottomRightRadius: radius.l,
-  },
-  rowPressed: {
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderBottomLeftRadius: radius.l - 1,
+    borderBottomRightRadius: radius.l - 1,
   },
   rowIcon: {
     fontSize: 20,
@@ -122,10 +410,5 @@ const styles = StyleSheet.create({
   },
   rowLabel: {
     fontSize: 16,
-    color: '#FFFFFF',
-  },
-  separator: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(255,255,255,0.25)',
   },
 });

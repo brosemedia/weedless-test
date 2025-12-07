@@ -103,18 +103,19 @@ const updateObstacleRects = (obstacle: Obstacle, config: EngineConfig) => {
   const gapHalf = obstacle.gapHeight / 2;
   const gapTopEdge = obstacle.gapY - gapHalf;
   const gapBottomEdge = obstacle.gapY + gapHalf;
+  // Oberes Hindernis: von y=0 bis gapTopEdge
   obstacle.topRect = {
     x: obstacle.x,
     y: 0,
     w: config.obstacleWidth,
     h: Math.max(0, gapTopEdge),
   };
-  const bottomY = Math.min(groundTop, gapBottomEdge);
+  // Unteres Hindernis: von gapBottomEdge bis ganz nach unten (config.height)
   obstacle.bottomRect = {
     x: obstacle.x,
-    y: bottomY,
+    y: gapBottomEdge,
     w: config.obstacleWidth,
-    h: Math.max(0, groundTop - bottomY),
+    h: Math.max(0, config.height - gapBottomEdge),
   };
 };
 
@@ -211,6 +212,8 @@ export function useZenGlideEngine({
   const sessionStopRef = useRef<number | null>(null);
   const endHandledRef = useRef(false);
   const onGameOverRef = useRef<typeof onGameOver | undefined>(undefined);
+  const lastScoreUpdateRef = useRef(0);
+  const lastUpdateTimeRef = useRef(0);
 
   useEffect(() => {
     onGameOverRef.current = onGameOver;
@@ -218,10 +221,46 @@ export function useZenGlideEngine({
 
   const updateSharedValues = useCallback(
     (state: EngineState = stateRef.current, circleOverride?: Circle) => {
+      const now = performance.now();
+      // Throttle Updates auf max 60 FPS für bessere Performance
+      if (now - lastUpdateTimeRef.current < 16) {
+        return;
+      }
+      lastUpdateTimeRef.current = now;
+      
       playerY.value = state.player.y;
       velocity.value = state.player.vy;
       playerCircle.value = circleOverride ?? derivePlayerCircle(state.player);
-      obstaclesSV.value = state.obstacles.map(cloneObstacle);
+      
+      // Optimiere Hindernis-Updates: nur klonen wenn nötig
+      const currentObstacles = obstaclesSV.value;
+      let needsUpdate = false;
+      
+      if (currentObstacles.length !== state.obstacles.length) {
+        needsUpdate = true;
+      } else {
+        // Prüfe ob sich Hindernisse geändert haben
+        for (let i = 0; i < state.obstacles.length; i++) {
+          const obs = state.obstacles[i];
+          const current = currentObstacles[i];
+          if (!current || 
+              obs.x !== current.x || 
+              obs.gapY !== current.gapY || 
+              obs.gapHeight !== current.gapHeight ||
+              obs.active !== current.active ||
+              obs.topRect.x !== current.topRect.x ||
+              obs.topRect.h !== current.topRect.h ||
+              obs.bottomRect.y !== current.bottomRect.y ||
+              obs.bottomRect.h !== current.bottomRect.h) {
+            needsUpdate = true;
+            break;
+          }
+        }
+      }
+      
+      if (needsUpdate) {
+        obstaclesSV.value = state.obstacles.map(cloneObstacle);
+      }
     },
     [obstaclesSV, playerCircle, playerY, velocity]
   );
@@ -235,6 +274,8 @@ export function useZenGlideEngine({
     endHandledRef.current = false;
     sessionStartRef.current = null;
     sessionStopRef.current = null;
+    lastScoreUpdateRef.current = 0;
+    lastUpdateTimeRef.current = 0;
     updateSharedValues(stateRef.current);
   }, [buildInitialState, updateSharedValues]);
 
@@ -257,6 +298,8 @@ export function useZenGlideEngine({
     endHandledRef.current = false;
     sessionStartRef.current = null;
     sessionStopRef.current = null;
+    lastScoreUpdateRef.current = 0;
+    lastUpdateTimeRef.current = 0;
     updateSharedValues(next);
   }, [buildInitialState, stop, updateSharedValues]);
 
@@ -266,6 +309,8 @@ export function useZenGlideEngine({
       endHandledRef.current = true;
       stop();
       setIsGameOver(true);
+      // Stelle sicher, dass der Score am Ende aktualisiert wird
+      setScore(finalScore);
       const now = Date.now();
       const start = sessionStartRef.current ?? now;
       const end = sessionStopRef.current ?? now;
@@ -377,7 +422,12 @@ export function useZenGlideEngine({
         if (!obstacle.passed && obstacleRight < playerLeft) {
           obstacle.passed = true;
           scoreRef.current += 1;
-          setScore(scoreRef.current);
+          // Throttle Score-Updates auf max 10 FPS um Re-Renders zu reduzieren
+          const now = performance.now();
+          if (now - lastScoreUpdateRef.current > 100) {
+            setScore(scoreRef.current);
+            lastScoreUpdateRef.current = now;
+          }
         }
 
         if (obstacleRight < -config.spawnPadding) {

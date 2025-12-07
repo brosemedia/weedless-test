@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, ScrollView } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../store/app';
@@ -81,7 +81,7 @@ const USE_METHOD_LABELS: Record<ConsumptionFormValues['method'], DailyUseEvent['
 export default function MultiStepDailyCheckin({ initial, onSubmit, onCancel, style }: Props): React.ReactElement {
   const nowISO = useMemo(() => new Date().toISOString(), []);
   const [modeChoice, setModeChoice] = useState<boolean | null>(
-    typeof initial?.usedToday === 'boolean' ? initial.usedToday : null
+    typeof initial?.usedToday === 'boolean' ? initial.usedToday : false
   );
   const usedToday = modeChoice === true;
   const profile = useApp((s) => s.profile);
@@ -449,33 +449,35 @@ export default function MultiStepDailyCheckin({ initial, onSubmit, onCancel, sty
           { icon: 'moon-outline' as const, label: 'Schlaf', value: `${sleep} h` },
         ];
         return (
-          <View style={styles.preview}>
-            <Text style={styles.previewTitle}>Deine Übersicht</Text>
-            <View style={{ gap: 12 }}>
-              {[...reviewRows, ...sharedRows].map((row) => (
-                <View key={row.label} style={styles.summaryRow}>
-                  <View style={styles.summaryIcon}>
-                    <Ionicons name={row.icon} size={18} color="#4A2A16" />
+          <ScrollView style={styles.previewScroll} contentContainerStyle={{ gap: 12 }}>
+            <View style={styles.preview}>
+              <Text style={styles.previewTitle}>Deine Übersicht</Text>
+              <View style={{ gap: 12 }}>
+                {[...reviewRows, ...sharedRows].map((row) => (
+                  <View key={row.label} style={styles.summaryRow}>
+                    <View style={styles.summaryIcon}>
+                      <Ionicons name={row.icon} size={18} color="#4A2A16" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.summaryLabel}>{row.label}</Text>
+                      <Text style={styles.summaryValue}>{row.value}</Text>
+                    </View>
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.summaryLabel}>{row.label}</Text>
-                    <Text style={styles.summaryValue}>{row.value}</Text>
+                ))}
+                {notes ? (
+                  <View style={[styles.summaryRow, styles.summaryNoteRow]}>
+                    <View style={styles.summaryIcon}>
+                      <Ionicons name="chatbubble-ellipses-outline" size={18} color="#4A2A16" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.summaryLabel}>Notiz</Text>
+                      <Text style={styles.summaryValue}>{notes}</Text>
+                    </View>
                   </View>
-                </View>
-              ))}
-              {notes ? (
-                <View style={[styles.summaryRow, styles.summaryNoteRow]}>
-                  <View style={styles.summaryIcon}>
-                    <Ionicons name="chatbubble-ellipses-outline" size={18} color="#4A2A16" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.summaryLabel}>Notiz</Text>
-                    <Text style={styles.summaryValue}>{notes}</Text>
-                  </View>
-                </View>
-              ) : null}
+                ) : null}
+              </View>
             </View>
-          </View>
+          </ScrollView>
         );
       }
     }
@@ -536,7 +538,7 @@ export default function MultiStepDailyCheckin({ initial, onSubmit, onCancel, sty
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, padding: 16, gap: 16 },
+  wrap: { flexGrow: 1, padding: 16, gap: 16, minHeight: 420 },
   progressHeader: { gap: 6 },
   h1: { fontSize: 22, fontWeight: '700', fontFamily: 'Inter-Bold', color: '#4A2A16', textAlign: 'center' },
   progress: { color: '#8A5D3E', fontSize: 12, fontFamily: 'Inter-SemiBold' },
@@ -544,19 +546,21 @@ const styles = StyleSheet.create({
   progressBarTrack: { height: 8, borderRadius: 999, backgroundColor: 'rgba(74,42,22,0.12)' },
   progressBarFill: { height: 8, borderRadius: 999, backgroundColor: '#E08C55' },
   stage: {
-    flex: 1,
-    borderRadius: 20,
-    backgroundColor: 'rgba(253,241,226,0.85)',
-    padding: 20,
+    minHeight: 300,
+    borderRadius: 24,
+    padding: 24,
     justifyContent: 'center',
     gap: 20,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.25)',
   },
   prompt: { alignItems: 'center', gap: 6 },
   stepContent: { gap: 12 },
   navRow: { flexDirection: 'row', gap: 12 },
   inputBlock: { gap: 6 },
-  label: { color: '#8A5D3E', fontSize: 14, fontFamily: 'Inter-SemiBold' },
-  helper: { color: '#8A5D3E', fontSize: 12, fontFamily: 'Inter-Regular' },
+  label: { color: '#1b1b1f', fontSize: 14, fontFamily: 'Inter-SemiBold' },
+  helper: { color: '#1b1b1f', fontSize: 12, fontFamily: 'Inter-Regular', opacity: 0.7 },
   input: {
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#E4BB90',
@@ -568,15 +572,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#fffdf8',
   },
   multiline: { minHeight: 96, textAlignVertical: 'top' },
+  previewScroll: { maxHeight: 360, borderRadius: 18 },
   preview: {
     padding: 16,
     borderRadius: 18,
-    backgroundColor: '#fffdf8',
-    borderWidth: 1,
-    borderColor: 'rgba(74,42,22,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.2)',
     gap: 12,
   },
-  previewTitle: { color: '#4A2A16', fontWeight: '700', fontFamily: 'Inter-SemiBold', fontSize: 16 },
+  previewTitle: { color: '#1b1b1f', fontWeight: '700', fontFamily: 'Inter-SemiBold', fontSize: 16 },
   summaryRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -587,14 +592,14 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 12,
-    backgroundColor: 'rgba(200,106,58,0.12)',
+    backgroundColor: 'rgba(22,163,74,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  summaryLabel: { color: '#8A5D3E', fontSize: 12, textTransform: 'uppercase', fontFamily: 'Inter-SemiBold' },
-  summaryValue: { color: '#4A2A16', fontSize: 16, fontFamily: 'Inter-SemiBold', marginTop: 2 },
-  summaryNoteRow: { backgroundColor: 'rgba(74,42,22,0.05)', borderRadius: 12, padding: 12 },
-  error: { color: '#C85B3A', fontSize: 12, marginTop: 4, fontFamily: 'Inter-SemiBold' },
+  summaryLabel: { color: '#4f4f57', fontSize: 12, textTransform: 'uppercase', fontFamily: 'Inter-SemiBold' },
+  summaryValue: { color: '#1b1b1f', fontSize: 16, fontFamily: 'Inter-SemiBold', marginTop: 2 },
+  summaryNoteRow: { backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 12, padding: 12 },
+  error: { color: '#c85b3a', fontSize: 12, marginTop: 4, fontFamily: 'Inter-SemiBold' },
   button: {
     flex: 1,
     backgroundColor: '#16A34A',

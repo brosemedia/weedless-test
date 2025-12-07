@@ -14,8 +14,8 @@ const ensurePermissionsAsync = async () => {
 
 const ensureChannelAsync = async () => {
   if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('weedless-default', {
-      name: 'Weedless Erinnerungen',
+    await Notifications.setNotificationChannelAsync('hazeless-default', {
+      name: 'Hazeless Erinnerungen',
       importance: Notifications.AndroidImportance.HIGH,
       vibrationPattern: [0, 250, 250, 250],
     });
@@ -31,13 +31,13 @@ export const scheduleAllOnboardingNotifications = async (profile: OnboardingProf
   await ensureChannelAsync();
   await cancelAllOnboardingNotifications();
 
-  const { reminders, quitDateISO, goal } = profile;
+  const { reminders, quitDateISO, lastConsumptionISO, goal } = profile;
 
   if (reminders.checkInTimeLocal) {
     const [hour = 20, minute = 30] = reminders.checkInTimeLocal.split(':').map(Number);
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: 'Weedless Tracken',
+        title: 'Hazeless Tracken',
         body: 'Wie fühlst du dich heute? Ein kurzes Tracken hilft dir auf Kurs zu bleiben.',
         sound: true,
       },
@@ -45,12 +45,16 @@ export const scheduleAllOnboardingNotifications = async (profile: OnboardingProf
         hour,
         minute,
         repeats: true,
-        channelId: 'weedless-default',
+        channelId: 'hazeless-default',
       },
     });
   }
 
-  const base = quitDateISO ? parseISO(quitDateISO) : new Date();
+  const base = quitDateISO
+    ? parseISO(quitDateISO)
+    : lastConsumptionISO
+    ? parseISO(lastConsumptionISO)
+    : new Date();
   if (!isValid(base)) {
     return;
   }
@@ -66,7 +70,7 @@ export const scheduleAllOnboardingNotifications = async (profile: OnboardingProf
             : `Großartig! ${days} Tage auf Kurs.`,
         sound: true,
       },
-      trigger: { channelId: 'weedless-default', date: target },
+      trigger: { channelId: 'hazeless-default', date: target },
     });
   }
 };

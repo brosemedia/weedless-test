@@ -75,7 +75,7 @@ export default function MissionCard({ title, points, image, completed = false }:
               {title}
             </Text>
             <View style={styles.pointsPill}>
-              <Text style={styles.pointsText}>+{points} Punkte</Text>
+              <Text style={styles.pointsText}>+{points} XP</Text>
             </View>
           </View>
         </ImageBackground>

@@ -1,11 +1,12 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Text } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { StepScreen } from '../components/StepScreen';
 import { Card } from '../components/Card';
 import { Chip } from '../components/Chip';
 import { useOnboardingStore } from '../store';
-import { strings } from '../i18n/de';
-import { spacing } from '../theme';
+import { useStrings } from '../i18n/useStrings';
+import { spacing, colors } from '../theme';
 import { onboardingSchemas } from '../utils/validators';
 import { useOnboardingStep } from '../hooks';
 
@@ -13,6 +14,7 @@ export const ConsumptionFormsScreen: React.FC = () => {
   const { stepNumber, totalSteps, goNext, goBack } = useOnboardingStep('ConsumptionForms');
   const forms = useOnboardingStore((state) => state.profile.consumption.forms);
   const mergeProfile = useOnboardingStore((state) => state.mergeProfile);
+  const strings = useStrings();
 
   const toggleForm = (value: string) => {
     const exists = forms.includes(value);
@@ -39,14 +41,20 @@ export const ConsumptionFormsScreen: React.FC = () => {
     >
       <Card>
         <View style={styles.chipContainer}>
-          {strings.forms.options.map((option) => (
-            <Chip
-              key={option.value}
-              label={option.label}
-              active={forms.includes(option.value)}
-              onPress={() => toggleForm(option.value)}
-            />
-          ))}
+          {strings.forms.options.map((option) => {
+            const isActive = forms.includes(option.value);
+            const iconName = strings.forms.icons[option.value as keyof typeof strings.forms.icons];
+            return (
+              <View key={option.value} style={styles.chipWrapper}>
+                <Chip
+                  label={option.label}
+                  active={isActive}
+                  onPress={() => toggleForm(option.value)}
+                  icon={iconName}
+                />
+              </View>
+            );
+          })}
         </View>
       </Card>
     </StepScreen>
@@ -58,5 +66,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     marginHorizontal: -spacing.sm,
+  },
+  chipWrapper: {
+    marginRight: spacing.sm,
+    marginBottom: spacing.sm,
   },
 });

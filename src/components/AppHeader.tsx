@@ -9,19 +9,26 @@ import {
   useWindowDimensions,
   Easing,
   Platform,
+  Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NavigationContainerRefWithCurrent } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import { colors, spacing } from '../design/tokens';
+import { spacing } from '../design/tokens';
 import { useUiStore } from '../store/ui';
 import PauseHeaderBadge from './PauseHeaderBadge';
+import LevelHeaderBadge from './LevelHeaderBadge';
+import { useTheme } from '../theme/useTheme';
+import type { ThemeColors } from '../theme/themes';
+import { useThemedStyles } from '../theme/useThemedStyles';
+import { haptics } from '../services/haptics';
 
 export const HEADER_BAR_HEIGHT = 40;
 export const HEADER_CLEARANCE = 6;
 export const HEADER_PADDING_BOTTOM = 2;
 export const HEADER_TOTAL_HEIGHT = HEADER_BAR_HEIGHT + HEADER_CLEARANCE + HEADER_PADDING_BOTTOM;
+const BASE_BOTTOM_PADDING = spacing.s;
 
 type Props = {
   navRef: NavigationContainerRefWithCurrent<any>;
@@ -31,6 +38,9 @@ type Props = {
 export default function AppHeader({ navRef, title }: Props) {
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
+  const { mode, theme, toggleMode } = useTheme();
+  const palette = theme.colors;
+  const styles = useThemedStyles(createStyles);
   const [open, setOpen] = useState(false);
   const [renderMenu, setRenderMenu] = useState(false);
   const pendingNavigation = useRef<(() => void) | null>(null);
@@ -38,12 +48,15 @@ export default function AppHeader({ navRef, title }: Props) {
   const paddingTop = insets.top + HEADER_CLEARANCE;
   const drawerWidth = Math.min(screenWidth * 0.92, screenWidth);
   const headerAtTop = useUiStore((s) => s.headerAtTop);
-  const blurProgress = useRef(new Animated.Value(headerAtTop ? 0 : 1)).current;
-  const [blurIntensity, setBlurIntensity] = useState(headerAtTop ? 0 : 90);
+  const setHeaderAccessoryHeight = useUiStore((s) => s.setHeaderAccessoryHeight);
+  const MIN_BLUR_PROGRESS = 0.35;
+  const blurProgress = useRef(new Animated.Value(headerAtTop ? MIN_BLUR_PROGRESS : 1)).current;
+  const [blurIntensity, setBlurIntensity] = useState(headerAtTop ? 90 * MIN_BLUR_PROGRESS : 90);
+  const extraBottomPadding = BASE_BOTTOM_PADDING;
 
   useEffect(() => {
     const id = blurProgress.addListener(({ value }) => {
-      const next = Math.min(90, Math.max(0, value * 90));
+      const next = Math.min(90, Math.max(35, value * 90));
       setBlurIntensity(next);
     });
     return () => blurProgress.removeListener(id);
@@ -51,7 +64,7 @@ export default function AppHeader({ navRef, title }: Props) {
 
   useEffect(() => {
     Animated.timing(blurProgress, {
-      toValue: headerAtTop ? 0 : 1,
+      toValue: headerAtTop ? MIN_BLUR_PROGRESS : 1,
       duration: 240,
       easing: headerAtTop ? Easing.out(Easing.cubic) : Easing.out(Easing.cubic),
       useNativeDriver: false,
@@ -96,8 +109,23 @@ export default function AppHeader({ navRef, title }: Props) {
     return () => clearTimeout(timeout);
   }, [open]);
 
-  const toggleMenu = () => setOpen((prev) => !prev);
+  useEffect(() => {
+    setHeaderAccessoryHeight(extraBottomPadding);
+  }, [extraBottomPadding, setHeaderAccessoryHeight]);
+
+  useEffect(
+    () => () => {
+      setHeaderAccessoryHeight(0);
+    },
+    [setHeaderAccessoryHeight]
+  );
+
+  const toggleMenu = () => {
+    haptics.trigger('general', 'selection');
+    setOpen((prev) => !prev);
+  };
   const closeMenu = (next?: () => void) => {
+    haptics.trigger('general', 'selection');
     if (next) {
       pendingNavigation.current = next;
     } else {
@@ -106,42 +134,51 @@ export default function AppHeader({ navRef, title }: Props) {
     setOpen(false);
   };
 
+  // Import haptics statically instead of require to avoid potential issues
+  const haptics = require('../services/haptics').haptics;
+
   const goToSettings = () => {
+    haptics.trigger('general', 'selection');
     closeMenu(() => {
       navRef.current?.navigate('Settings');
     });
   };
 
   const goToHelp = () => {
+    haptics.trigger('general', 'selection');
     closeMenu(() => {
       navRef.current?.navigate('Help');
     });
   };
 
   const goToPhilosophy = () => {
+    haptics.trigger('general', 'selection');
     closeMenu(() => {
       navRef.current?.navigate('Settings', { screen: 'Philosophy' });
     });
   };
 
   const goToPauseHistory = () => {
+    haptics.trigger('general', 'selection');
     closeMenu(() => {
       navRef.current?.navigate('PauseHistory');
     });
   };
 
   const goToZenGlide = () => {
+    haptics.trigger('general', 'selection');
     closeMenu(() => {
       navRef.current?.navigate('ZenGlide');
     });
   };
 
   const openFeedback = () => {
+    haptics.trigger('general', 'selection');
     closeMenu();
-    Linking.openURL('mailto:feedback@weedless.app').catch(() => {});
+    Linking.openURL('mailto:feedback@hazeless.app').catch(() => {});
   };
 
-  const barHeight = insets.top + HEADER_TOTAL_HEIGHT;
+  const barHeight = insets.top + HEADER_TOTAL_HEIGHT + extraBottomPadding;
   const translateX = progress.interpolate({
     inputRange: [0, 1],
     outputRange: [drawerWidth, 0],
@@ -161,8 +198,9 @@ export default function AppHeader({ navRef, title }: Props) {
           {
             height: barHeight,
             paddingTop,
-            paddingLeft: insets.left + spacing.l,
+            paddingLeft: insets.left + spacing.xl,
             paddingRight: spacing.xl + insets.right,
+            paddingBottom: HEADER_PADDING_BOTTOM + extraBottomPadding,
             gap: spacing.s,
           },
         ]}
@@ -171,7 +209,7 @@ export default function AppHeader({ navRef, title }: Props) {
           <BlurView
             pointerEvents="none"
             intensity={blurIntensity}
-            tint="light"
+            tint={mode === 'dark' ? 'dark' : 'light'}
             style={StyleSheet.absoluteFill}
           />
         ) : null}
@@ -188,25 +226,30 @@ export default function AppHeader({ navRef, title }: Props) {
             },
           ]}
         />
-        <View style={styles.titleWrap}>
-          <Text style={styles.title} numberOfLines={1}>
-            {title}
-          </Text>
-        </View>
-        <PauseHeaderBadge navRef={navRef} />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Menü öffnen"
-          onPress={toggleMenu}
-          style={styles.menuButton}
-          hitSlop={8}
-        >
-          <View style={styles.hamburger}>
-            <View style={styles.hamburgerLine} />
-            <View style={styles.hamburgerLine} />
-            <View style={styles.hamburgerLine} />
+        <View style={styles.topRow}>
+          <View style={styles.titleRow}>
+            <Text style={styles.title} numberOfLines={1}>
+              {title}
+            </Text>
+            <View style={styles.badgeRow}>
+              <LevelHeaderBadge navRef={navRef} />
+              <PauseHeaderBadge navRef={navRef} />
+            </View>
           </View>
-        </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Menü öffnen"
+            onPress={toggleMenu}
+            style={styles.menuButton}
+            hitSlop={8}
+          >
+            <View style={styles.hamburger}>
+              <View style={styles.hamburgerLine} />
+              <View style={styles.hamburgerLine} />
+              <View style={styles.hamburgerLine} />
+            </View>
+          </Pressable>
+        </View>
       </Animated.View>
       {renderMenu ? (
         <View style={styles.drawerLayer} pointerEvents="box-none">
@@ -251,13 +294,13 @@ export default function AppHeader({ navRef, title }: Props) {
                 hitSlop={8}
                 style={({ pressed }) => [styles.drawerCloseBtn, pressed && styles.drawerCloseBtnPressed]}
               >
-                <MaterialCommunityIcons name="close" size={22} color={colors.light.text} />
+                <MaterialCommunityIcons name="close" size={22} color={palette.text} />
               </Pressable>
             </View>
             <View style={styles.drawerQuickAction}>
               <Pressable style={({ pressed }) => [styles.drawerItemAccent, pressed && styles.drawerItemAccentPressed]} onPress={goToZenGlide}>
                 <View style={styles.drawerItemContent}>
-                  <MaterialCommunityIcons name="gamepad-variant-outline" size={22} color={colors.light.surface} />
+                  <MaterialCommunityIcons name="gamepad-variant-outline" size={22} color={palette.surface} />
                   <Text style={styles.drawerItemAccentText}>Schnelle Ablenkung</Text>
                 </View>
               </Pressable>
@@ -265,38 +308,49 @@ export default function AppHeader({ navRef, title }: Props) {
             <View style={styles.drawerList}>
               <Pressable style={({ pressed }) => [styles.drawerItem, pressed && styles.drawerItemPressed]} onPress={goToPauseHistory}>
                 <View style={styles.drawerItemContent}>
-                  <MaterialCommunityIcons name="pause-circle-outline" size={22} color={colors.light.primary} />
+                  <MaterialCommunityIcons name="pause-circle-outline" size={22} color={palette.primary} />
                   <Text style={styles.drawerItemText}>Pausen</Text>
                 </View>
               </Pressable>
               <View style={styles.separator} />
               <Pressable style={({ pressed }) => [styles.drawerItem, pressed && styles.drawerItemPressed]} onPress={goToSettings}>
                 <View style={styles.drawerItemContent}>
-                  <MaterialCommunityIcons name="cog-outline" size={22} color={colors.light.primary} />
+                  <MaterialCommunityIcons name="cog-outline" size={22} color={palette.primary} />
                   <Text style={styles.drawerItemText}>Einstellungen</Text>
                 </View>
               </Pressable>
               <View style={styles.separator} />
               <Pressable style={({ pressed }) => [styles.drawerItem, pressed && styles.drawerItemPressed]} onPress={goToHelp}>
                 <View style={styles.drawerItemContent}>
-                  <MaterialCommunityIcons name="lifebuoy" size={22} color={colors.light.primary} />
+                  <MaterialCommunityIcons name="lifebuoy" size={22} color={palette.primary} />
                   <Text style={styles.drawerItemText}>Hilfe</Text>
                 </View>
               </Pressable>
               <View style={styles.separator} />
               <Pressable style={({ pressed }) => [styles.drawerItem, pressed && styles.drawerItemPressed]} onPress={goToPhilosophy}>
                 <View style={styles.drawerItemContent}>
-                  <MaterialCommunityIcons name="leaf-circle-outline" size={22} color={colors.light.primary} />
+                  <MaterialCommunityIcons name="leaf-circle-outline" size={22} color={palette.primary} />
                   <Text style={styles.drawerItemText}>Unsere Philosophie</Text>
                 </View>
               </Pressable>
               <View style={styles.separator} />
               <Pressable style={({ pressed }) => [styles.drawerItem, pressed && styles.drawerItemPressed]} onPress={openFeedback}>
                 <View style={styles.drawerItemContent}>
-                  <MaterialCommunityIcons name="email-edit-outline" size={22} color={colors.light.primary} />
+                  <MaterialCommunityIcons name="email-edit-outline" size={22} color={palette.primary} />
                   <Text style={styles.drawerItemText}>Feedback senden</Text>
                 </View>
               </Pressable>
+              <View style={styles.separator} />
+              <View style={styles.themeToggleRow}>
+                <Text style={styles.themeToggleLabel}>Dunkler Modus</Text>
+                <Switch
+                  value={mode === 'dark'}
+                  onValueChange={toggleMode}
+                  thumbColor={mode === 'dark' ? palette.buttonText : '#f4f3f4'}
+                  trackColor={{ false: palette.border, true: palette.primary }}
+                  ios_backgroundColor={palette.border}
+                />
+              </View>
             </View>
           </Animated.View>
         </View>
@@ -305,161 +359,194 @@ export default function AppHeader({ navRef, title }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    zIndex: 20,
-  },
-  inner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingBottom: HEADER_PADDING_BOTTOM,
-    overflow: 'hidden',
-  },
-  tintLayer: {
-    backgroundColor: 'rgba(255,255,255,0.65)',
-  },
-  borderOverlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.light.border,
-  },
-  titleWrap: {
-    flex: 1,
-    alignItems: 'flex-start',
-    justifyContent: 'center',
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '700',
-    fontFamily: 'Inter-Bold',
-    color: colors.light.text,
-    maxWidth: '100%',
-  },
-  menuButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'transparent',
-  },
-  hamburger: {
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    height: 16,
-  },
-  hamburgerLine: {
-    width: 18,
-    height: 2,
-    borderRadius: 2,
-    backgroundColor: colors.light.text,
-  },
-  drawerLayer: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 10,
-  },
-  backdrop: {
-    backgroundColor: colors.light.overlay,
-  },
-  drawer: {
-    position: 'absolute',
-    right: 0,
-    backgroundColor: colors.light.surface,
-    borderTopLeftRadius: 32,
-    borderBottomLeftRadius: 32,
-    paddingHorizontal: spacing.xl,
-    shadowColor: '#5a341e',
-    shadowOpacity: 0.28,
-    shadowRadius: 32,
-    shadowOffset: { width: -8, height: 12 },
-    elevation: 18,
-    gap: spacing.xl,
-  },
-  drawerHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.s,
-  },
-  drawerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.light.text,
-    fontFamily: 'Inter-Bold',
-  },
-  drawerSubtitle: {
-    fontSize: 13,
-    color: colors.light.textMuted,
-    fontFamily: 'Inter-Regular',
-  },
-  drawerCloseBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  drawerCloseBtnPressed: {
-    backgroundColor: 'rgba(0,0,0,0.05)',
-  },
-  drawerList: {
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(200, 106, 58, 0.25)',
-    overflow: 'hidden',
-    backgroundColor: colors.light.surface,
-  },
-  drawerQuickAction: {
-    borderRadius: 28,
-    overflow: 'hidden',
-    backgroundColor: colors.light.primary,
-  },
-  drawerItem: {
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    backgroundColor: colors.light.surface,
-  },
-  drawerItemPressed: {
-    backgroundColor: 'rgba(200, 106, 58, 0.15)',
-  },
-  drawerItemText: {
-    fontSize: 16,
-    color: colors.light.text,
-    fontWeight: '600',
-    fontFamily: 'Inter-SemiBold',
-  },
-  drawerItemAccent: {
-    paddingHorizontal: 18,
-    paddingVertical: 18,
-    backgroundColor: 'transparent',
-  },
-  drawerItemAccentPressed: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  drawerItemAccentText: {
-    fontSize: 16,
-    color: colors.light.surface,
-    fontWeight: '700',
-    fontFamily: 'Inter-Bold',
-  },
-  drawerItemContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.m,
-  },
-  separator: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(200, 106, 58, 0.18)',
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    wrap: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      top: 0,
+      bottom: 0,
+      zIndex: 20,
+    },
+    inner: {
+      flexDirection: 'column',
+      alignItems: 'stretch',
+      paddingBottom: HEADER_PADDING_BOTTOM,
+      overflow: 'hidden',
+    },
+    tintLayer: {
+      backgroundColor: colors.overlay,
+    },
+    borderOverlay: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colors.border,
+    },
+    topRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing.s,
+    },
+    titleRow: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing.s,
+    },
+    badgeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+      flexShrink: 1,
+      flexWrap: 'nowrap',
+      maxWidth: '60%',
+    },
+    title: {
+      fontSize: 20,
+      fontWeight: '700',
+      fontFamily: 'Inter-Bold',
+      color: colors.text,
+      flex: 1,
+      marginRight: spacing.xs,
+      minWidth: 80,
+    },
+    menuButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'transparent',
+    },
+    hamburger: {
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      height: 16,
+    },
+    hamburgerLine: {
+      width: 18,
+      height: 2,
+      borderRadius: 2,
+      backgroundColor: colors.text,
+    },
+    drawerLayer: {
+      position: 'absolute',
+      left: 0,
+      top: 0,
+      right: 0,
+      bottom: 0,
+      zIndex: 10,
+    },
+    backdrop: {
+      backgroundColor: colors.overlay,
+    },
+    drawer: {
+      position: 'absolute',
+      right: 0,
+      backgroundColor: colors.surface,
+      borderTopLeftRadius: 32,
+      borderBottomLeftRadius: 32,
+      paddingHorizontal: spacing.xl,
+      shadowColor: colors.primary,
+      shadowOpacity: 0.25,
+      shadowRadius: 32,
+      shadowOffset: { width: -8, height: 12 },
+      elevation: 18,
+      gap: spacing.xl,
+    },
+    drawerHeader: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: spacing.s,
+    },
+    drawerTitle: {
+      fontSize: 20,
+      fontWeight: '700',
+      color: colors.text,
+      fontFamily: 'Inter-Bold',
+    },
+    drawerSubtitle: {
+      fontSize: 13,
+      color: colors.textMuted,
+      fontFamily: 'Inter-Regular',
+    },
+    drawerCloseBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    drawerCloseBtnPressed: {
+      backgroundColor: colors.border,
+    },
+    drawerList: {
+      borderRadius: 24,
+      borderWidth: 1,
+      borderColor: colors.border,
+      overflow: 'hidden',
+      backgroundColor: colors.surface,
+    },
+    drawerQuickAction: {
+      borderRadius: 28,
+      overflow: 'hidden',
+      backgroundColor: colors.primary,
+    },
+    drawerItem: {
+      paddingHorizontal: 18,
+      paddingVertical: 16,
+      backgroundColor: colors.surface,
+    },
+    drawerItemPressed: {
+      backgroundColor: colors.border,
+    },
+    drawerItemText: {
+      fontSize: 16,
+      color: colors.text,
+      fontWeight: '600',
+      fontFamily: 'Inter-SemiBold',
+    },
+    drawerItemAccent: {
+      paddingHorizontal: 18,
+      paddingVertical: 18,
+      backgroundColor: 'transparent',
+    },
+    drawerItemAccentPressed: {
+      backgroundColor: colors.border,
+    },
+    drawerItemAccentText: {
+      fontSize: 16,
+      color: colors.surface,
+      fontWeight: '700',
+      fontFamily: 'Inter-Bold',
+    },
+    drawerItemContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.m,
+    },
+    separator: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colors.border,
+    },
+    themeToggleRow: {
+      paddingHorizontal: 18,
+      paddingVertical: 14,
+      backgroundColor: colors.surface,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    themeToggleLabel: {
+      fontSize: 16,
+      color: colors.text,
+      fontWeight: '600',
+      fontFamily: 'Inter-SemiBold',
+    },
+  });

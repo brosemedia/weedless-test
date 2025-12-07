@@ -4,9 +4,9 @@ import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { HEADER_TOTAL_HEIGHT } from '../../components/AppHeader';
-import { useHeaderTransparency } from '../../hooks/useHeaderTransparency';
-import { useUiStore } from '../../store/ui';
+import { useQuickActionsVisibility } from '../../hooks/useQuickActionsVisibility';
+
+// BackButton entfernt – der native Stack-Header hat bereits einen Zurück-Button mit Blur-Effekt
 const CARD_COLOR = '#D99A25';
 
 export type TapResultsParams = {
@@ -21,6 +21,8 @@ export type MinigameStackParamList = {
   MinigamesHub: undefined;
   TapGame: undefined;
   TapResults: TapResultsParams;
+  MindHouseGame: undefined;
+  NumberFlowGame: undefined;
 };
 
 type Props = NativeStackScreenProps<MinigameStackParamList, 'MinigamesHub'>;
@@ -46,9 +48,8 @@ async function readTodayProgress(): Promise<boolean> {
 
 export default function MinigamesHub({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const headerAccessoryHeight = useUiStore((s) => s.headerAccessoryHeight);
   const [tapDone, setTapDone] = useState(false);
-  const { handleScroll } = useHeaderTransparency();
+  useQuickActionsVisibility('minigames-hub', true);
 
   useFocusEffect(
     useCallback(() => {
@@ -66,16 +67,18 @@ export default function MinigamesHub({ navigation }: Props) {
   const badgeLabel = tapDone ? 'Heute erledigt' : 'Offen';
   const badgeStyle = tapDone ? styles.badgeDone : styles.badgeOpen;
 
+  // Padding für den nativen transparenten Stack-Header (ca. 44pt + Safe Area)
+  const headerHeight = 44;
   const contentStyle = {
-    paddingTop: insets.top + HEADER_TOTAL_HEIGHT + headerAccessoryHeight + 12,
+    paddingTop: insets.top + headerHeight + 12,
   };
 
   return (
     <ScrollView
       contentContainerStyle={[styles.container, contentStyle]}
-      onScroll={handleScroll}
       scrollEventThrottle={16}
     >
+      {/* BackButton entfernt – nativer Header übernimmt */}
       <Text style={styles.title}>Minigames</Text>
       <Pressable style={styles.card} onPress={() => navigation.navigate('TapGame')}>
         <View style={styles.cardInner}>
@@ -87,6 +90,28 @@ export default function MinigamesHub({ navigation }: Props) {
           </View>
           <Text style={styles.cardDescription}>
             Reaktionszeit-Test mit 30 Taps. Triff so schnell und präzise wie möglich.
+          </Text>
+        </View>
+      </Pressable>
+
+      <Pressable style={styles.card} onPress={() => navigation.navigate('MindHouseGame')}>
+        <View style={styles.cardInner}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>Mind House</Text>
+          </View>
+          <Text style={styles.cardDescription}>
+            Track how many figures stay inside the house to train your focus.
+          </Text>
+        </View>
+      </Pressable>
+
+      <Pressable style={styles.card} onPress={() => navigation.navigate('NumberFlowGame')}>
+        <View style={styles.cardInner}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>Number Flow</Text>
+          </View>
+          <Text style={styles.cardDescription}>
+            Follow a flowing chain of + and − operations and enter the final result.
           </Text>
         </View>
       </Pressable>

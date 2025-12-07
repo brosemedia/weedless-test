@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "Weedless",
-    "slug": "Weedless",
+    "name": "Hazeless",
+    "slug": "hazeless",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/App_Icon.png",
+    "icon": "./assets/AppIcon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
@@ -14,23 +14,36 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.brosemedia.Weedless"
+      "bundleIdentifier": "com.brosemedia.Hazeless"
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/App_Icon.png",
+        "foregroundImage": "./assets/AppIcon.png",
         "backgroundColor": "#F6D3AD"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.brosemedia.Weedless"
+      "package": "com.brosemedia.Hazeless"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-sqlite",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "minSdkVersion": 24
+          },
+          "ios": {
+            "deploymentTarget": "17.0"
+          }
+        }
+      ]
     ]
   }
 }

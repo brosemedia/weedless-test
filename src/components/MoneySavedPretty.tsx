@@ -23,19 +23,21 @@ function ymd(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
-function sumConsumedUpTo(dayLogs: Record<string, DayLog>, untilYmd: string) {
+function sumConsumedUpTo(dayLogs: Record<string, DayLog>, untilYmd: string, fromYmd?: string) {
   return Object.values(dayLogs).reduce((a, d) => {
     if (!d.date || d.date > untilYmd) return a;
+    if (fromYmd && d.date < fromYmd) return a;
     return a + (d.consumedGrams || 0);
   }, 0);
 }
 
-/** Builds a daily cumulative "money saved" series from profile.startTimestamp to today. */
+/** Builds a daily cumulative "money saved" series from profile.moneyCalculationStartTimestamp (fallback start) to today. */
 function buildMoneySavedSeries(profile: Profile, logs: Record<string, DayLog>): Pt[] {
-  if (!profile?.startTimestamp) return [];
+  const startSource = profile.moneyCalculationStartTimestamp ?? profile.startTimestamp;
+  if (!startSource) return [];
   const gph = gramsPerHour(profile);
   const ppg = pricePerGram(profile);
-  const start = new Date(profile.startTimestamp);
+  const start = new Date(startSource);
   const today = new Date();
   const days = Math.max(
     0,
@@ -46,12 +48,13 @@ function buildMoneySavedSeries(profile: Profile, logs: Record<string, DayLog>): 
     ),
   );
   const out: Pt[] = [];
+  const startKey = ymd(start);
   for (let i = 0; i <= days; i++) {
     const d = new Date(start.getTime() + i * DAY);
     const key = ymd(d);
-    const hoursSinceStart = (d.getTime() + DAY - profile.startTimestamp) / 3_600_000; // end of day
+    const hoursSinceStart = (d.getTime() + DAY - startSource) / 3_600_000; // end of day
     const expectedGrams = Math.max(0, hoursSinceStart * gph);
-    const consumedGrams = sumConsumedUpTo(logs, key);
+    const consumedGrams = sumConsumedUpTo(logs, key, startKey);
     const savedGrams = Math.max(0, expectedGrams - consumedGrams);
     const money = Math.max(0, savedGrams * ppg);
     out.push({ x: d, y: Number(money.toFixed(2)) });

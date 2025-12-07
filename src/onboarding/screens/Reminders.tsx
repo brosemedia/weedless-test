@@ -6,7 +6,7 @@ import { Chip } from '../components/Chip';
 import { Checkbox } from '../components/Checkbox';
 import { DateTimeField } from '../components/DateTimeField';
 import { useOnboardingStore } from '../store';
-import { strings } from '../i18n/de';
+import { useStrings } from '../i18n/useStrings';
 import { useOnboardingStep } from '../hooks';
 import { onboardingSchemas } from '../utils/validators';
 import { colors, spacing, typography } from '../theme';
@@ -17,6 +17,7 @@ export const RemindersScreen: React.FC = () => {
   const { stepNumber, totalSteps, goNext, goBack } = useOnboardingStep('Reminders');
   const reminders = useOnboardingStore((state) => state.profile.reminders);
   const mergeProfile = useOnboardingStore((state) => state.mergeProfile);
+  const strings = useStrings();
   const [tracked, setTracked] = useState(false);
 
   const timeValue = useMemo(

@@ -19,7 +19,7 @@ export const MAX_FRAME_DT = 0.05;
 export const clamp = (value: number, min: number, max: number) =>
   Math.max(min, Math.min(max, value));
 
-export function circleRectCollides(circle: Circle, rect: Rect, inset = HITBOX_SHRINK): boolean {
+export function circleRectCollides(circle: Circle, rect: Rect, inset = 0): boolean {
   const rx = rect.x + inset;
   const ry = rect.y + inset;
   const rw = rect.w - inset * 2;

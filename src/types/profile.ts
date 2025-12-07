@@ -5,8 +5,13 @@ export type Profile = {
   jointsPerDayBaseline?: number; // J/Tag
   avgSessionMinutes?: number; // Ø Minuten je Session
   startTimestamp: number; // ms – "konsumfrei seit"
+  moneyCalculationStartTimestamp?: number; // fester Start für Geld-Berechnung (nie verschieben)
+  longestStreakHours?: number; // höchste jemals erreichte konsumfreie Zeit (h)
   lastConsumptionAt?: number;
   locale?: string; // "de-DE"
+  consumptionMethods?: string[];
+  cloudSyncConsent?: boolean;
+  subscriptionPlan?: 'monthly' | 'yearly' | 'none';
   version: number; // schema version
 };
 

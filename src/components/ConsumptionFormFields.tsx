@@ -1,8 +1,11 @@
 import React, { useMemo } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
-import { colors, radius, spacing } from '../design/tokens';
+import { radius, spacing } from '../design/tokens';
 import type { PaidByUser } from '../types/profile';
 import type { ConsumptionFormValues, ConsumptionQuantityUnit } from '../lib/consumption';
+import { useTheme } from '../theme/useTheme';
+import { useThemedStyles } from '../theme/useThemedStyles';
+import type { ThemeColors } from '../theme/themes';
 
 type Props = {
   value: ConsumptionFormValues;
@@ -30,6 +33,9 @@ const COST_OPTIONS: { key: PaidByUser; label: string; description?: string }[] =
 ];
 
 export default function ConsumptionFormFields({ value, onChange, suggestedAmount }: Props) {
+  const { theme } = useTheme();
+  const styles = useThemedStyles(createStyles);
+  const placeholderColor = theme.mode === 'dark' ? 'rgba(244,247,245,0.5)' : 'rgba(74,42,22,0.4)';
   const amountPlaceholder = useMemo(() => {
     if (typeof suggestedAmount === 'number' && suggestedAmount > 0) {
       return suggestedAmount.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -62,7 +68,7 @@ export default function ConsumptionFormFields({ value, onChange, suggestedAmount
               onChangeText={(text) => onChange({ quantity: text })}
               keyboardType="decimal-pad"
               placeholder="z. B. 0,5"
-              placeholderTextColor="rgba(74,42,22,0.4)"
+              placeholderTextColor={placeholderColor}
               style={[styles.input, { flex: 1 }]}
             />
             <View style={styles.unitSwitcher}>
@@ -119,7 +125,7 @@ export default function ConsumptionFormFields({ value, onChange, suggestedAmount
             onChangeText={(text) => onChange({ durationMinutes: text })}
             keyboardType="decimal-pad"
             placeholder="optional"
-            placeholderTextColor="rgba(74,42,22,0.4)"
+            placeholderTextColor={placeholderColor}
             style={styles.input}
           />
         </View>
@@ -158,7 +164,7 @@ export default function ConsumptionFormFields({ value, onChange, suggestedAmount
               onChangeText={(text) => onChange({ amountSpent: text })}
               keyboardType="decimal-pad"
               placeholder={amountPlaceholder}
-              placeholderTextColor="rgba(74,42,22,0.4)"
+              placeholderTextColor={placeholderColor}
               style={styles.input}
             />
           </View>
@@ -168,131 +174,132 @@ export default function ConsumptionFormFields({ value, onChange, suggestedAmount
   );
 }
 
-const styles = StyleSheet.create({
-  section: {
-    backgroundColor: '#fff7ef',
-    borderRadius: radius.xl,
-    padding: spacing.l,
-    borderWidth: 1,
-    borderColor: colors.light.border,
-    gap: spacing.s,
-  },
-  sectionLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.light.text,
-  },
-  fieldLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.light.navy,
-    marginBottom: 6,
-  },
-  input: {
-    borderRadius: radius.l,
-    borderWidth: 1,
-    borderColor: colors.light.border,
-    paddingHorizontal: spacing.m,
-    paddingVertical: spacing.s,
-    backgroundColor: '#fff',
-    fontSize: 16,
-    color: colors.light.text,
-  },
-  quantityRow: {
-    flexDirection: 'column',
-    gap: spacing.s,
-  },
-  unitSwitcher: {
-    flexDirection: 'row',
-    borderRadius: radius.pill,
-    backgroundColor: 'rgba(161,166,31,0.15)',
-    padding: 2,
-  },
-  unitButton: {
-    flex: 1,
-    borderRadius: radius.pill,
-    paddingVertical: spacing.s / 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  unitButtonActive: {
-    backgroundColor: colors.light.surface,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-  },
-  unitButtonLabel: {
-    fontSize: 13,
-    color: colors.light.textMuted,
-    fontWeight: '600',
-  },
-  unitButtonLabelActive: {
-    color: colors.light.text,
-  },
-  methodGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.s,
-  },
-  methodChip: {
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.m,
-    paddingVertical: spacing.xs,
-    borderWidth: 1,
-    borderColor: 'transparent',
-    backgroundColor: 'rgba(161,166,31,0.12)',
-  },
-  methodChipActive: {
-    borderColor: colors.light.primary,
-    backgroundColor: 'rgba(161,166,31,0.25)',
-  },
-  methodLabel: {
-    fontSize: 13,
-    color: colors.light.textMuted,
-    fontWeight: '600',
-  },
-  methodLabelActive: {
-    color: colors.light.text,
-  },
-  helper: {
-    fontSize: 13,
-    color: colors.light.textMuted,
-  },
-  radioRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.s,
-    paddingVertical: spacing.xs,
-  },
-  radioRowActive: {
-    backgroundColor: 'rgba(161,166,31,0.1)',
-    borderRadius: radius.l,
-    paddingHorizontal: spacing.s,
-  },
-  radioOuter: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: colors.light.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  radioOuterActive: {
-    borderColor: colors.light.primary,
-  },
-  radioInner: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  radioInnerActive: {
-    backgroundColor: colors.light.primary,
-  },
-  radioLabel: {
-    fontSize: 14,
-    color: colors.light.text,
-    flex: 1,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    section: {
+      backgroundColor: colors.cardBg,
+      borderRadius: radius.xl,
+      padding: spacing.l,
+      borderWidth: 1,
+      borderColor: colors.border,
+      gap: spacing.s,
+    },
+    sectionLabel: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    fieldLabel: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.navy,
+      marginBottom: 6,
+    },
+    input: {
+      borderRadius: radius.l,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: spacing.m,
+      paddingVertical: spacing.s,
+      backgroundColor: colors.surface,
+      fontSize: 16,
+      color: colors.text,
+    },
+    quantityRow: {
+      flexDirection: 'column',
+      gap: spacing.s,
+    },
+    unitSwitcher: {
+      flexDirection: 'row',
+      borderRadius: radius.pill,
+      backgroundColor: colors.border,
+      padding: 2,
+    },
+    unitButton: {
+      flex: 1,
+      borderRadius: radius.pill,
+      paddingVertical: spacing.s / 2,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    unitButtonActive: {
+      backgroundColor: colors.surface,
+      shadowColor: colors.primary,
+      shadowOpacity: 0.2,
+      shadowRadius: 4,
+      shadowOffset: { width: 0, height: 2 },
+    },
+    unitButtonLabel: {
+      fontSize: 13,
+      color: colors.textMuted,
+      fontWeight: '600',
+    },
+    unitButtonLabelActive: {
+      color: colors.text,
+    },
+    methodGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.s,
+    },
+    methodChip: {
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.m,
+      paddingVertical: spacing.xs,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.cardBg,
+    },
+    methodChipActive: {
+      borderColor: colors.primary,
+      backgroundColor: colors.primaryMuted,
+    },
+    methodLabel: {
+      fontSize: 13,
+      color: colors.textMuted,
+      fontWeight: '600',
+    },
+    methodLabelActive: {
+      color: colors.text,
+    },
+    helper: {
+      fontSize: 13,
+      color: colors.textMuted,
+    },
+    radioRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.s,
+      paddingVertical: spacing.xs,
+    },
+    radioRowActive: {
+      backgroundColor: colors.border,
+      borderRadius: radius.l,
+      paddingHorizontal: spacing.s,
+    },
+    radioOuter: {
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      borderWidth: 2,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    radioOuterActive: {
+      borderColor: colors.primary,
+    },
+    radioInner: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+    },
+    radioInnerActive: {
+      backgroundColor: colors.primary,
+    },
+    radioLabel: {
+      fontSize: 14,
+      color: colors.text,
+      flex: 1,
+    },
+  });

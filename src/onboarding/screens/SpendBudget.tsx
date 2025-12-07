@@ -1,11 +1,11 @@
 import React from 'react';
-import { Text, TextInput, StyleSheet } from 'react-native';
+import { Text, TextInput, StyleSheet, View } from 'react-native';
 import { StepScreen } from '../components/StepScreen';
 import { Card } from '../components/Card';
 import { NumberField } from '../components/NumberField';
 import { UnitToggle } from '../components/UnitToggle';
 import { useOnboardingStore } from '../store';
-import { strings } from '../i18n/de';
+import { useStrings } from '../i18n/useStrings';
 import { useOnboardingStep } from '../hooks';
 import { onboardingSchemas } from '../utils/validators';
 import { colors, spacing, typography } from '../theme';
@@ -14,6 +14,7 @@ export const SpendBudgetScreen: React.FC = () => {
   const { stepNumber, totalSteps, goNext, goBack } = useOnboardingStep('SpendBudget');
   const profile = useOnboardingStore((state) => state.profile);
   const mergeProfile = useOnboardingStore((state) => state.mergeProfile);
+  const strings = useStrings();
 
   const spend = profile.spend ?? { unit: 'week', amount: null, goalNote: null };
 
@@ -41,7 +42,10 @@ export const SpendBudgetScreen: React.FC = () => {
           label={strings.spend.amountLabel}
           value={spend.amount ?? null}
           onChange={(value) => updateSpend({ amount: value })}
-          unitSuffix={profile.currency}
+          unitSuffix={strings.spend.currencySymbols[profile.currency as keyof typeof strings.spend.currencySymbols] || profile.currency}
+          quickValues={spend.unit === 'day' ? [5, 10, 20, 30, 50] : spend.unit === 'week' ? [20, 50, 100, 150, 200] : [100, 200, 300, 500, 1000]}
+          step={spend.unit === 'day' ? 5 : spend.unit === 'week' ? 10 : 50}
+          min={0}
         />
         <Text style={styles.label}>{strings.spend.unitLabel}</Text>
         <UnitToggle

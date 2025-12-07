@@ -8,6 +8,12 @@ export const DEFAULT_REMINDER_TIME = '20:30';
 export const unitEnum = z.enum(['day', 'week', 'month']);
 
 export const onboardingSchemas = {
+  gender: z.object({
+    gender: z.enum(['male', 'female', 'other']),
+  }),
+  birthYear: z.object({
+    birthYear: z.number().min(1900).max(new Date().getFullYear()),
+  }),
   goals: z.object({
     goal: z.enum(['pause', 'reduce', 'quit', 'track']),
   }),
@@ -49,6 +55,7 @@ export const onboardingSchemas = {
   }),
   quit: z.object({
     quitDateISO: z.string().optional(),
+    lastConsumptionISO: z.string().optional(),
     pauseLengthDays: z.number().nullable().optional(),
   }),
   triggers: z.object({
@@ -80,9 +87,6 @@ export const onboardingSchemas = {
     disclaimerAccepted: z.literal(true, {
       errorMap: () => ({ message: 'Notwendig' }),
     }),
-  }),
-  account: z.object({
-    method: z.enum(['anonymous', 'apple', 'google']),
   }),
 };
 
