@@ -67,6 +67,11 @@ const HAZELESS_LOGO_WHITE = require('./assets/hazeless_logo_white.png');
 const GRADIENT_START = '#1B5E20';
 const GRADIENT_END = '#4CAF50';
 
+// Pause-Check-in Timing
+const CHECKIN_WINDOW_MS = 2 * 60 * 60 * 1000; // 2 Stunden bis ein Check-in als „alt“ gilt
+const CHECKIN_INTERVAL_MS = 2 * 60 * 60 * 1000; // Intervall für Hintergrundprüfungen
+const PAUSE_START_GRACE_MS = 30 * 60 * 1000; // Schonfrist nach Pausenstart, bevor geprüft wird
+
 type NavStateLike = NavigationState | PartialState<NavigationState> | undefined;
 
 const ROUTE_TITLES_DE: Record<string, string> = {
@@ -323,10 +328,11 @@ function NavigationWithTheme({ navRef, onReady, onStateChange, onQuickActionPres
       
       // Prüfe, ob ein Check-in gemacht wurde und ob es weniger als eine Stunde alt ist
       const now = Date.now();
-      const ONE_HOUR_MS = 60 * 60 * 1000; // 1 Stunde in Millisekunden
       
       // Finde den neuesten Check-in (heute oder in den letzten Tagen)
-      const dayLogs = useApp.getState().dayLogs;
+      const state = useApp.getState();
+      const dayLogs = state.dayLogs;
+      const activePause = state.pauses.find((pause) => pause.status === 'aktiv');
       let lastCheckinTimestamp: number | null = null;
       
       // Durchsuche alle DayLogs nach dem neuesten Check-in
@@ -344,12 +350,21 @@ function NavigationWithTheme({ navRef, onReady, onStateChange, onQuickActionPres
         }
       });
       
-      const needsCheckin = lastCheckinTimestamp === null || (now - lastCheckinTimestamp) > ONE_HOUR_MS;
+      // Schonfrist direkt nach Pausenstart
+      if (activePause?.startTimestamp) {
+        const sinceStart = now - Number(activePause.startTimestamp);
+        if (sinceStart < PAUSE_START_GRACE_MS) {
+          console.log('[PauseCheckin] Within grace period after pause start, skipping check-in prompt');
+          return true;
+        }
+      }
+
+      const needsCheckin = lastCheckinTimestamp === null || (now - lastCheckinTimestamp) > CHECKIN_WINDOW_MS;
       
       console.log('[PauseCheckin] Last check-in timestamp:', lastCheckinTimestamp, 'Now:', now, 'Needs check-in:', needsCheckin);
       
       if (lastCheckinTimestamp) {
-        const hoursSinceLastCheckin = (now - lastCheckinTimestamp) / ONE_HOUR_MS;
+        const hoursSinceLastCheckin = (now - lastCheckinTimestamp) / (60 * 60 * 1000);
         console.log('[PauseCheckin] Hours since last check-in:', hoursSinceLastCheckin.toFixed(2));
       }
       
@@ -434,11 +449,11 @@ function NavigationWithTheme({ navRef, onReady, onStateChange, onQuickActionPres
       attemptCheckin();
     }, 2000); // Etwas länger warten beim ersten Start
 
-    // Prüfe auch regelmäßig (alle 5 Minuten), damit Check-ins nach mehr als einer Stunde erkannt werden
+    // Prüfe auch regelmäßig (alle ~2 Stunden), damit Check-ins nach Ablauf erkannt werden
     const intervalCheck = setInterval(() => {
       console.log('[PauseCheckin] Regular interval check');
       checkAndNavigateToCheckin();
-    }, 5 * 60 * 1000); // Alle 5 Minuten
+    }, CHECKIN_INTERVAL_MS);
 
     return () => {
       subscription.remove();

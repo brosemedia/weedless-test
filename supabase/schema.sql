@@ -31,22 +31,22 @@ DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
 CREATE POLICY "Users can view own profile"
   ON public.profiles
   FOR SELECT
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 -- Users can insert their own profile (for registration)
 DROP POLICY IF EXISTS "Users can insert own profile" ON public.profiles;
 CREATE POLICY "Users can insert own profile"
   ON public.profiles
   FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK ((select auth.uid()) = user_id);
 
 -- Users can update their own profile
 DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
 CREATE POLICY "Users can update own profile"
   ON public.profiles
   FOR UPDATE
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id)
+  WITH CHECK ((select auth.uid()) = user_id);
 
 -- Function to automatically create profile on user signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -106,29 +106,29 @@ DROP POLICY IF EXISTS "Users can view own projects" ON public.projects;
 CREATE POLICY "Users can view own projects"
   ON public.projects
   FOR SELECT
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 -- Users can insert their own projects
 DROP POLICY IF EXISTS "Users can insert own projects" ON public.projects;
 CREATE POLICY "Users can insert own projects"
   ON public.projects
   FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK ((select auth.uid()) = user_id);
 
 -- Users can update their own projects
 DROP POLICY IF EXISTS "Users can update own projects" ON public.projects;
 CREATE POLICY "Users can update own projects"
   ON public.projects
   FOR UPDATE
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id)
+  WITH CHECK ((select auth.uid()) = user_id);
 
 -- Users can delete their own projects
 DROP POLICY IF EXISTS "Users can delete own projects" ON public.projects;
 CREATE POLICY "Users can delete own projects"
   ON public.projects
   FOR DELETE
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 -- Trigger to update updated_at on projects
 DROP TRIGGER IF EXISTS update_projects_updated_at ON public.projects;
@@ -161,29 +161,29 @@ DROP POLICY IF EXISTS "Users can view own todos" ON public.todos;
 CREATE POLICY "Users can view own todos"
   ON public.todos
   FOR SELECT
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 -- Users can insert their own todos
 DROP POLICY IF EXISTS "Users can insert own todos" ON public.todos;
 CREATE POLICY "Users can insert own todos"
   ON public.todos
   FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK ((select auth.uid()) = user_id);
 
 -- Users can update their own todos
 DROP POLICY IF EXISTS "Users can update own todos" ON public.todos;
 CREATE POLICY "Users can update own todos"
   ON public.todos
   FOR UPDATE
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id)
+  WITH CHECK ((select auth.uid()) = user_id);
 
 -- Users can delete their own todos
 DROP POLICY IF EXISTS "Users can delete own todos" ON public.todos;
 CREATE POLICY "Users can delete own todos"
   ON public.todos
   FOR DELETE
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 -- Trigger to update updated_at on todos
 DROP TRIGGER IF EXISTS update_todos_updated_at ON public.todos;
@@ -214,29 +214,29 @@ DROP POLICY IF EXISTS "Users can view own badges" ON public.badges;
 CREATE POLICY "Users can view own badges"
   ON public.badges
   FOR SELECT
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 -- Users can insert their own badges
 DROP POLICY IF EXISTS "Users can insert own badges" ON public.badges;
 CREATE POLICY "Users can insert own badges"
   ON public.badges
   FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK ((select auth.uid()) = user_id);
 
 -- Users can update their own badges
 DROP POLICY IF EXISTS "Users can update own badges" ON public.badges;
 CREATE POLICY "Users can update own badges"
   ON public.badges
   FOR UPDATE
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id)
+  WITH CHECK ((select auth.uid()) = user_id);
 
 -- Users can delete their own badges
 DROP POLICY IF EXISTS "Users can delete own badges" ON public.badges;
 CREATE POLICY "Users can delete own badges"
   ON public.badges
   FOR DELETE
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 -- ============================================
 -- INDEXES FOR PERFORMANCE

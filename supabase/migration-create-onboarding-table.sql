@@ -66,29 +66,29 @@ DROP POLICY IF EXISTS "Users can view own onboarding profile" ON public.onboardi
 CREATE POLICY "Users can view own onboarding profile"
   ON public.onboarding_profiles
   FOR SELECT
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 -- Users can insert their own onboarding profile
 DROP POLICY IF EXISTS "Users can insert own onboarding profile" ON public.onboarding_profiles;
 CREATE POLICY "Users can insert own onboarding profile"
   ON public.onboarding_profiles
   FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK ((select auth.uid()) = user_id);
 
 -- Users can update their own onboarding profile
 DROP POLICY IF EXISTS "Users can update own onboarding profile" ON public.onboarding_profiles;
 CREATE POLICY "Users can update own onboarding profile"
   ON public.onboarding_profiles
   FOR UPDATE
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id)
+  WITH CHECK ((select auth.uid()) = user_id);
 
 -- Users can delete their own onboarding profile
 DROP POLICY IF EXISTS "Users can delete own onboarding profile" ON public.onboarding_profiles;
 CREATE POLICY "Users can delete own onboarding profile"
   ON public.onboarding_profiles
   FOR DELETE
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 -- ============================================
 -- TRIGGER: updated_at automatisch aktualisieren

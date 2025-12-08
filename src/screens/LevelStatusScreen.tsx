@@ -21,6 +21,7 @@ import { resolveMilestoneIcon } from '../data/milestones';
 import type { Milestone } from '../types/milestone';
 import { useTheme } from '../theme/useTheme';
 import { useQuickActionsVisibility } from '../hooks/useQuickActionsVisibility';
+import { computeMilestoneCompletion } from '../lib/milestoneProgress';
 
 const HAZELESS_LOGO = require('../../assets/hazeless_logo.png');
 
@@ -73,10 +74,17 @@ export default function LevelStatusScreen() {
   }, [checkins]);
 
   const progressFor = (m: Milestone) => {
-    if (m.kind === 'pause') return m.achievedAt ? 1 : 0;
-    const totalNow = m.kind === 'streak' ? currentStreak : m.kind === 'count' ? checkins.length : agg.moneySaved;
-    const threshold = m.threshold || 1;
-    return Math.max(0, Math.min(1, totalNow / threshold));
+    const totalNow =
+      m.kind === 'streak'
+        ? currentStreak
+        : m.kind === 'count'
+        ? checkins.length
+        : m.kind === 'money'
+        ? agg.moneySaved
+        : m.achievedAt
+        ? m.threshold || 1
+        : 0;
+    return computeMilestoneCompletion(totalNow, m);
   };
 
   const remainingLabel = (m: Milestone) => {

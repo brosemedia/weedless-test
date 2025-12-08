@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, View, Text, Pressable, StyleSheet, Modal, Image, ImageBackground, Animated } from 'react-native';
+import { ScrollView, View, Text, Pressable, StyleSheet, Modal, Image, ImageBackground, Animated, FlatList } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import {
@@ -11,14 +11,16 @@ import {
   endOfWeek,
   format,
   isBefore,
+  isAfter,
   isSameDay,
   isSameMonth,
   startOfDay,
   startOfMonth,
   startOfWeek,
   subMonths,
+  isValid,
 } from 'date-fns';
-import { de } from 'date-fns/locale';
+import { de, enUS } from 'date-fns/locale';
 import { Ionicons } from '@expo/vector-icons';
 import HeroFigure from '../../assets/1900_81.svg';
 import { colors, spacing, radius, shadows } from '../design/tokens';
@@ -92,6 +94,39 @@ const sp = spacing;
 const CONSUMED_ICON = require('../../assets/cannabis_icons/Cannabis_4.png');
 const THC_FREE_ICON = require('../../assets/cannabis_icons/Cannabis_15.png');
 
+type LocaleInfo = {
+  locale: Locale;
+  weekStartsOn: 0 | 1;
+  shortDateFormat: string;
+  longDateA11yFormat: string;
+};
+
+type Locale = typeof de;
+
+const resolveLocaleInfo = (profileLocale?: string): LocaleInfo => {
+  const deviceLocale = Intl.DateTimeFormat().resolvedOptions().locale ?? 'de-DE';
+  const tag = (profileLocale || deviceLocale || 'de-DE').toLowerCase();
+  const isEnglish = tag.startsWith('en');
+  return {
+    locale: isEnglish ? enUS : de,
+    weekStartsOn: isEnglish ? 0 : 1,
+    shortDateFormat: isEnglish ? 'MM/dd' : 'dd.MM.',
+    longDateA11yFormat: isEnglish ? 'PPPP' : 'PPPP',
+  };
+};
+
+const weekdayLabels = (weekStartsOn: 0 | 1, locale: Locale) => {
+  const start = startOfWeek(new Date(), { weekStartsOn });
+  return Array.from({ length: 7 }, (_, idx) => format(addDays(start, idx), 'EEEEE', { locale }));
+};
+
+const normalizeStartDate = (timestamp?: number | null) => {
+  if (!timestamp) return null;
+  const ms = timestamp < 10_000_000_000 ? timestamp * 1000 : timestamp;
+  const date = startOfDay(new Date(ms));
+  return isValid(date) ? date : null;
+};
+
 const timestampFromKey = (dateKey: string, time?: string) => {
   const [year, month, day] = dateKey.split('-').map((part) => parseInt(part, 10));
   if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
@@ -109,16 +144,13 @@ const timestampFromKey = (dateKey: string, time?: string) => {
 
 const formatKey = (date: Date) => format(date, 'yyyy-MM-dd');
 
-const buildMonthDays = (monthStart: Date) => {
-  const start = startOfWeek(monthStart, { weekStartsOn: 1 });
-  const end = endOfWeek(endOfMonth(monthStart), { weekStartsOn: 1 });
+const buildMonthDays = (monthStart: Date, weekStartsOn: 0 | 1) => {
+  const start = startOfWeek(monthStart, { weekStartsOn });
+  const end = endOfWeek(endOfMonth(monthStart), { weekStartsOn });
   return eachDayOfInterval({ start, end });
 };
 
-const WEEKDAY_SHORT = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 const MONTH_DAY_WIDTH = `${100 / 7}%`;
-const MONTHS_BEFORE_TODAY = 5;
-const TOTAL_MONTHS = 12;
 const ACTIVITY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   Aufgaben: 'checkmark-done-outline',
   Konsum: 'leaf-outline',
@@ -129,6 +161,19 @@ const ACTIVITY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   XP: 'star-outline',
   'Check-in': 'clipboard-outline',
 };
+
+const DAY_ITEM_WIDTH = 68;
+const DAY_ITEM_STEP = DAY_ITEM_WIDTH + 8;
+const DAY_ROW_INSET = spacing.s as number;
+
+function LegendDot({ color, label }: { color: string; label: string }) {
+  return (
+    <View style={styles.legendItem}>
+      <View style={[styles.legendDot, { backgroundColor: color }]} />
+      <Text style={styles.legendLabel}>{label}</Text>
+    </View>
+  );
+}
 
 const formatNumber = (value: number, maximumFractionDigits = 1) =>
   value.toLocaleString('de-DE', {
@@ -236,6 +281,7 @@ const activityEntriesForLog = (log?: DayLog): ActivityEntry[] => {
 type DayChipProps = {
   date: Date;
   selected: boolean;
+  weekdayLabel: string;
   hasConsumption: boolean;
   showStatusIcon: boolean;
   onPress: () => void;
@@ -243,22 +289,35 @@ type DayChipProps = {
   indicatorColor?: string;
 };
 
-function DayChip({ date, selected, hasConsumption, showStatusIcon, onPress, isBeforeStart, indicatorColor }: DayChipProps) {
+function DayChip({
+  date,
+  selected,
+  weekdayLabel,
+  hasConsumption,
+  showStatusIcon,
+  onPress,
+  isBeforeStart,
+  indicatorColor,
+}: DayChipProps) {
   const { theme } = useTheme();
   const palette = theme.colors;
   const dayNumber = format(date, 'd');
-  
-  // Tage vor dem Start werden nicht angezeigt (leerer Platzhalter)
-  if (isBeforeStart) {
-    return <View style={styles.dayChipPlaceholder} />;
-  }
-  
+
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      style={[styles.dayChipCompact, selected && styles.dayChipCompactSelected]}
+      style={[styles.dayChipCompact, { width: DAY_ITEM_WIDTH }, selected && styles.dayChipCompactSelected]}
     >
+      <Text
+        style={[
+          styles.dayWeekLabel,
+          { color: palette.textMuted },
+          selected && { color: palette.text },
+        ]}
+      >
+        {weekdayLabel}
+      </Text>
       <View 
         style={[
           styles.dayNumberBox, 
@@ -394,11 +453,22 @@ type CalendarOverviewModalProps = {
   dayLogs: Record<string, DayLog>;
   pauseMap?: Record<string, 'active' | 'past'>;
   userStartDate?: Date | null;
+  localeInfo: LocaleInfo;
 };
 
-function CalendarOverviewModal({ visible, onClose, onSelectDate, dayLogs, pauseMap, userStartDate }: CalendarOverviewModalProps) {
+function CalendarOverviewModal({
+  visible,
+  onClose,
+  onSelectDate,
+  dayLogs,
+  pauseMap,
+  userStartDate,
+  localeInfo,
+}: CalendarOverviewModalProps) {
   useQuickActionsVisibility('tracken-calendar', visible);
   const insets = useSafeAreaInsets();
+  const { theme } = useTheme();
+  const palette = theme.colors;
   const [calendarAnchor, setCalendarAnchor] = useState(() => new Date());
   const [focusedDate, setFocusedDate] = useState(() => new Date());
   const [activityDate, setActivityDate] = useState<Date | null>(null);
@@ -407,6 +477,70 @@ function CalendarOverviewModal({ visible, onClose, onSelectDate, dayLogs, pauseM
   const scrollRef = useRef<ScrollView>(null);
   const initialScrollDone = useRef(false);
   const lastTapRef = useRef<{ date: Date; ts: number } | null>(null);
+
+  const { locale, weekStartsOn } = localeInfo ?? resolveLocaleInfo();
+  const today = startOfDay(new Date());
+
+  const { journeyStart, journeyEnd } = useMemo(() => {
+    const logDates = Object.keys(dayLogs)
+      .map((key) => startOfDay(parseDateKey(key)))
+      .filter((d) => !Number.isNaN(d.getTime()));
+    const earliestLog = logDates.length ? logDates.reduce((a, b) => (isBefore(a, b) ? a : b)) : null;
+    const latestLog = logDates.length ? logDates.reduce((a, b) => (isBefore(a, b) ? b : a)) : null;
+    const start = userStartDate ?? earliestLog ?? today;
+    const end = latestLog && isBefore(today, latestLog) ? latestLog : today;
+    return { journeyStart: startOfDay(start), journeyEnd: startOfDay(end) };
+  }, [dayLogs, userStartDate, today]);
+
+  const consumedKeys = useMemo(
+    () =>
+      new Set(
+        Object.entries(dayLogs)
+          .filter(([, log]) => (log?.consumedGrams ?? 0) > 0 || (log?.consumedJoints ?? 0) > 0)
+          .map(([key]) => key)
+      ),
+    [dayLogs]
+  );
+
+  const isConsumedDay = (day: Date) => consumedKeys.has(formatKey(day));
+
+  const horizonEnd = useMemo(() => startOfMonth(addMonths(today, 12)), [today]);
+
+  const monthStarts = useMemo(() => {
+    const startMonth = startOfMonth(journeyStart);
+    const months: Date[] = [];
+    let cursor = startMonth;
+    while (!isAfter(cursor, horizonEnd)) {
+      months.push(cursor);
+      cursor = addMonths(cursor, 1);
+    }
+    return months;
+  }, [journeyStart, horizonEnd]);
+
+  const currentStreak = useMemo(() => {
+    let streak = 0;
+    let cursor = today;
+    while (!isBefore(cursor, journeyStart)) {
+      if (isConsumedDay(cursor)) break;
+      streak += 1;
+      cursor = addDays(cursor, -1);
+    }
+    return streak;
+  }, [journeyStart, today, consumedKeys]);
+
+  const longestStreak = useMemo(() => {
+    let best = 0;
+    let run = 0;
+    eachDayOfInterval({ start: journeyStart, end: journeyEnd }).forEach((day) => {
+      if (isConsumedDay(day)) {
+        run = 0;
+      } else {
+        run += 1;
+        best = Math.max(best, run);
+      }
+    });
+    return best;
+  }, [journeyStart, journeyEnd, consumedKeys]);
 
   useEffect(() => {
     if (!visible) return;
@@ -423,19 +557,15 @@ function CalendarOverviewModal({ visible, onClose, onSelectDate, dayLogs, pauseM
     }
   }, [visible]);
 
-  const today = startOfDay(new Date());
-  const monthStarts = useMemo(() => {
-    const base = startOfMonth(subMonths(calendarAnchor, MONTHS_BEFORE_TODAY));
-    return Array.from({ length: TOTAL_MONTHS }, (_, idx) => addMonths(base, idx));
-  }, [calendarAnchor]);
-
   useEffect(() => {
     if (!visible || !monthBlockHeight || initialScrollDone.current) return;
     initialScrollDone.current = true;
     requestAnimationFrame(() => {
-      scrollRef.current?.scrollTo({ y: MONTHS_BEFORE_TODAY * monthBlockHeight, animated: false });
+      const currentMonthIdx = monthStarts.findIndex((m) => isSameMonth(m, today));
+      const targetIdx = currentMonthIdx >= 0 ? currentMonthIdx : monthStarts.length - 1;
+      scrollRef.current?.scrollTo({ y: targetIdx * monthBlockHeight, animated: false });
     });
-  }, [visible, monthBlockHeight]);
+  }, [visible, monthBlockHeight, monthStarts, today]);
 
   const handleDayPress = (day: Date) => {
     const nowTs = Date.now();
@@ -461,49 +591,104 @@ function CalendarOverviewModal({ visible, onClose, onSelectDate, dayLogs, pauseM
         style={[
           styles.calendarModalScreen,
           {
+              backgroundColor: palette.background,
             paddingTop: insets.top + sp.l,
-            paddingBottom: Math.max(sp.l as number, insets.bottom + sp.m) + 100, // Extra Padding für TabBar
+            paddingBottom: Math.max(sp.m as number, insets.bottom + sp.s) + 16,
           },
         ]}
       >
         <View style={styles.calendarModalHeader}>
           <View>
-            <Text style={styles.calendarModalTitle}>Kalender</Text>
-            <Text style={styles.calendarModalSubtitle}>Alle Aktivitäten im Überblick</Text>
+            <Text style={[styles.calendarModalTitle, { color: palette.text }]}>Kalender</Text>
+            <Text style={[styles.calendarModalSubtitle, { color: palette.textMuted }]}>
+              Alle Aktivitäten im Überblick
+            </Text>
           </View>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Kalender schließen"
             onPress={onClose}
             hitSlop={8}
-            style={({ pressed }) => [styles.modalCloseBtn, pressed && styles.modalCloseBtnPressed]}
+            style={({ pressed }) => [
+              styles.modalCloseBtn,
+              { backgroundColor: palette.surfaceMuted, borderColor: palette.border, borderWidth: StyleSheet.hairlineWidth },
+              pressed && styles.modalCloseBtnPressed,
+            ]}
           >
-            <Ionicons name="close" size={22} color={lt.text} />
+            <Ionicons name="close" size={22} color={palette.text} />
           </Pressable>
+        </View>
+        <View style={[styles.calendarLegendRow, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+          <LegendDot color={palette.primary} label="Aktuelle Pause" />
+          <LegendDot color="rgba(16,104,74,0.35)" label="Vergangene Pause" />
+          <LegendDot color="#f59e0b" label="Konsum" />
+          <LegendDot color="#22c55e" label="Konsumfrei" />
+        </View>
+        <View
+          style={[
+            styles.calendarSummary,
+            { backgroundColor: palette.surface, borderColor: palette.border },
+          ]}
+        >
+          <View style={styles.calendarSummaryItem}>
+            <Text style={[styles.calendarSummaryLabel, { color: palette.textMuted }]}>Aktuelle Pause</Text>
+            <Text style={[styles.calendarSummaryValue, { color: palette.text }]}>{currentStreak} Tage</Text>
+          </View>
+          <View style={styles.calendarSummaryDivider} />
+          <View style={styles.calendarSummaryItem}>
+            <Text style={[styles.calendarSummaryLabel, { color: palette.textMuted }]}>Längste Pause</Text>
+            <Text style={[styles.calendarSummaryValue, { color: palette.text }]}>{longestStreak} Tage</Text>
+          </View>
         </View>
         <ScrollView
           ref={scrollRef}
           style={styles.calendarModalScroll}
-          contentContainerStyle={styles.calendarModalScrollContent}
+          contentContainerStyle={[
+            styles.calendarModalScrollContent,
+            { paddingBottom: (sp.xl as number) + (insets.bottom || 0) + 32 },
+          ]}
           showsVerticalScrollIndicator={false}
         >
-          {monthStarts.map((monthStart) => {
-            const days = buildMonthDays(monthStart);
+          {monthStarts
+            .filter((monthStart) => {
+              const days = buildMonthDays(monthStart, weekStartsOn);
+              return days.some((day) => {
+                const dayStart = startOfDay(day);
+                const before = isBefore(dayStart, journeyStart);
+                const after = isAfter(dayStart, horizonEnd);
+                return !(before || after);
+              });
+            })
+            .map((monthStart) => {
+            const days = buildMonthDays(monthStart, weekStartsOn);
+            const visibleDays = days.filter((day) => {
+              const dayStart = startOfDay(day);
+              const before = isBefore(dayStart, journeyStart);
+              const after = isAfter(dayStart, horizonEnd);
+              return !(before || after);
+            });
+            if (visibleDays.length === 0) return null;
             return (
               <View
                 key={monthStart.toISOString()}
-                style={styles.calendarMonthBlock}
+                style={[
+                  styles.calendarMonthBlock,
+                  { backgroundColor: palette.surface, borderColor: palette.border, borderWidth: StyleSheet.hairlineWidth },
+                ]}
                 onLayout={(event) => {
                   if (monthBlockHeight) return;
                   setMonthBlockHeight(event.nativeEvent.layout.height);
                 }}
               >
-                <Text style={styles.calendarMonthLabel}>
-                  {format(monthStart, 'LLLL yyyy', { locale: de })}
+                <Text style={[styles.calendarMonthLabel, { color: palette.text }]}>
+                  {format(monthStart, 'LLLL yyyy', { locale })}
                 </Text>
                 <View style={styles.calendarWeekHeader}>
-                  {WEEKDAY_SHORT.map((abbr) => (
-                    <Text key={abbr} style={styles.calendarWeekdayText}>
+                  {weekdayLabels(weekStartsOn, locale).map((abbr, idx) => (
+                    <Text
+                      key={`${abbr}-${idx}`}
+                      style={[styles.calendarWeekdayText, { color: palette.textMuted }]}
+                    >
                       {abbr}
                     </Text>
                   ))}
@@ -526,12 +711,16 @@ function CalendarOverviewModal({ visible, onClose, onSelectDate, dayLogs, pauseM
                     const pauseState = pauseMap?.[key];
                     
                     // Prüfen ob Tag vor dem Benutzer-Start liegt
-                    const isBeforeStart = userStartDate ? isBefore(startOfDay(day), userStartDate) : false;
+                    const isBeforeStart = isBefore(startOfDay(day), journeyStart);
+                    const isAfterHorizon = isAfter(startOfDay(day), horizonEnd);
+                    const isFuture = isAfter(startOfDay(day), journeyEnd);
                     
                     // Tage vor dem Start werden als leere Platzhalter angezeigt
-                    if (isBeforeStart) {
+                    const dayKey = `${monthStart.toISOString()}-${key}`;
+
+                    if (isBeforeStart || isAfterHorizon) {
                       return (
-                        <View key={day.toISOString()} style={[styles.calendarMonthDay, styles.calendarMonthDayHidden]}>
+                        <View key={dayKey} style={[styles.calendarMonthDay, styles.calendarMonthDayHidden]}>
                           <Text style={styles.calendarMonthDayTextHidden}>{format(day, 'd')}</Text>
                         </View>
                       );
@@ -539,42 +728,52 @@ function CalendarOverviewModal({ visible, onClose, onSelectDate, dayLogs, pauseM
                     
                     return (
                       <Pressable
-                        key={day.toISOString()}
+                        key={dayKey}
                         accessibilityRole="button"
-                        accessibilityLabel={format(day, 'PPPP', { locale: de })}
+                        accessibilityLabel={format(day, localeInfo.longDateA11yFormat, { locale })}
                         onPress={() => handleDayPress(day)}
+                        disabled={isFuture}
                         style={({ pressed }) => [
                           styles.calendarMonthDay,
+                          { backgroundColor: palette.surfaceMuted },
                           !isCurrentMonth && styles.calendarMonthDayMuted,
+                          isFuture && { opacity: 0.8 },
                           pauseState === 'past' && styles.calendarPauseRange,
                           pauseState === 'active' && styles.calendarPauseRangeActive,
-                          isSelected && styles.calendarMonthDaySelected,
-                          isToday && styles.calendarMonthDayToday,
+                          isSelected && [styles.calendarMonthDaySelected, { borderColor: palette.primary }],
+                          isToday && [
+                            styles.calendarMonthDayToday,
+                            { borderColor: palette.primary, backgroundColor: 'rgba(34,197,94,0.12)' },
+                          ],
                           pressed && styles.calendarMonthDayPressed,
                         ]}
-                      >
+                        >
                         <Text
                           style={[
                             styles.calendarMonthDayText,
                             !isCurrentMonth && styles.calendarMonthDayTextMuted,
-                            isSelected && styles.calendarMonthDayTextSelected,
+                            isSelected && [styles.calendarMonthDayTextSelected, { color: palette.surface }],
+                            isFuture && { color: palette.text },
+                            isToday && { fontWeight: '800' },
                           ]}
                         >
                           {format(day, 'd')}
                         </Text>
-                        <View style={styles.calendarIndicatorRow}>
-                          {hasTasks ? (
-                            <View style={[styles.calendarIndicatorDot, styles.calendarIndicatorTask]} />
-                          ) : null}
-                          {hasConsumption ? (
-                            <View
-                              style={[styles.calendarIndicatorDot, styles.calendarIndicatorConsumption]}
-                            />
-                          ) : null}
-                          {hasOther ? (
-                            <View style={[styles.calendarIndicatorDot, styles.calendarIndicatorOther]} />
-                          ) : null}
-                        </View>
+                        {!isFuture && (
+                          <View style={styles.calendarIndicatorRow}>
+                            {hasTasks ? (
+                              <View style={[styles.calendarIndicatorDot, styles.calendarIndicatorTask, { opacity: 0.95 }]} />
+                            ) : null}
+                            {hasConsumption ? (
+                              <View
+                                style={[styles.calendarIndicatorDot, styles.calendarIndicatorConsumption, { opacity: 0.95 }]}
+                              />
+                            ) : null}
+                            {hasOther ? (
+                              <View style={[styles.calendarIndicatorDot, styles.calendarIndicatorOther, { opacity: 0.95 }]} />
+                            ) : null}
+                          </View>
+                        )}
                       </Pressable>
                     );
                   })}
@@ -589,6 +788,7 @@ function CalendarOverviewModal({ visible, onClose, onSelectDate, dayLogs, pauseM
         onClose={() => setActivityModalVisible(false)}
         date={activityDate}
         entries={activityEntriesForLog(activityDate ? dayLogs[formatKey(activityDate)] : undefined)}
+        localeInfo={localeInfo}
       />
     </Modal>
   );
@@ -599,13 +799,15 @@ type ActivitiesModalProps = {
   onClose: () => void;
   date: Date | null;
   entries: ActivityEntry[];
+  localeInfo: LocaleInfo;
 };
 
-function ActivitiesModal({ visible, onClose, date, entries }: ActivitiesModalProps) {
+function ActivitiesModal({ visible, onClose, date, entries, localeInfo }: ActivitiesModalProps) {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
   const palette = theme.colors;
-  const title = date ? format(date, 'EEEE, d. MMMM', { locale: de }) : 'Aktivitäten';
+  const safeLocale = localeInfo?.locale ?? de;
+  const title = date ? format(date, 'EEEE, d. MMMM', { locale: safeLocale }) : 'Aktivitäten';
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
       <SafeAreaView style={[styles.activitiesScreen, { paddingTop: insets.top + sp.l, backgroundColor: palette.background }]}>
@@ -693,11 +895,18 @@ export default function TrackenScreen() {
   const markTaskDone = useApp((s) => s.markTaskDone);
   const pauses = useApp((s) => s.pauses);
   const profile = useApp((s) => s.profile);
+  const localeInfo = useMemo(() => resolveLocaleInfo(profile?.locale ?? undefined), [profile?.locale]);
   const userStartDate = useMemo(() => {
-    if (!profile?.startTimestamp) return null;
-    return startOfDay(new Date(profile.startTimestamp));
+    return normalizeStartDate(profile?.startTimestamp);
   }, [profile?.startTimestamp]);
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
+  const today = startOfDay(new Date());
+  const normalizedUserStartDate = useMemo(() => {
+    if (!userStartDate) return null;
+    return isAfter(userStartDate, today) ? today : userStartDate;
+  }, [userStartDate, today]);
+  const [weekStart, setWeekStart] = useState(() =>
+    startOfWeek(new Date(), { weekStartsOn: localeInfo.weekStartsOn })
+  );
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [showCheck, setShowCheck] = useState(false);
   const [showCalendarModal, setShowCalendarModal] = useState(false);
@@ -712,7 +921,8 @@ export default function TrackenScreen() {
   const [taskContainerWidth, setTaskContainerWidth] = useState(0);
   const [currentTaskIndex, setCurrentTaskIndex] = useState(0);
   const lastDayTapRef = useRef<{ date: Date; ts: number } | null>(null);
-  const compactCalendarRef = useRef<ScrollView | null>(null);
+  const compactListRef = useRef<ScrollView | null>(null);
+  const [visibleMonthDate, setVisibleMonthDate] = useState<Date>(() => new Date());
   
   // Task Scroll Konstanten
   const TASK_CARD_WIDTH = 270;
@@ -730,15 +940,16 @@ export default function TrackenScreen() {
     setCurrentTaskIndex(clampedIndex);
   };
 
-  const today = startOfDay(new Date());
-  const weekDays = useMemo(
-    () => Array.from({ length: 7 }, (_, idx) => addDays(weekStart, idx)),
-    [weekStart]
-  );
   const compactDays = useMemo(() => {
-    const start = userStartDate ?? addDays(today, -30);
-    return eachDayOfInterval({ start, end: today });
-  }, [today, userStartDate]);
+    const rawStart = normalizedUserStartDate ?? addDays(today, -30);
+    const validStart = isValid(rawStart) ? rawStart : addDays(today, -30);
+    const safeStart = isAfter(validStart, today) ? addDays(today, -30) : validStart;
+    return eachDayOfInterval({ start: safeStart, end: today });
+  }, [today, normalizedUserStartDate]);
+
+  useEffect(() => {
+    setWeekStart(startOfWeek(selectedDate, { weekStartsOn: localeInfo.weekStartsOn }));
+  }, [localeInfo.weekStartsOn, selectedDate]);
 
   const selectedKey = formatKey(selectedDate);
   const logForSelected = dayLogs[selectedKey];
@@ -774,7 +985,7 @@ export default function TrackenScreen() {
     const lastTap = lastDayTapRef.current;
     const isSameAsLast = lastTap && isSameDay(day, lastTap.date) && nowTs - lastTap.ts < 450;
     setSelectedDate(day);
-    setWeekStart(startOfWeek(day, { weekStartsOn: 1 }));
+    setWeekStart(startOfWeek(day, { weekStartsOn: localeInfo.weekStartsOn }));
     if (isSameAsLast) {
       setActivityDate(day);
       setActivityModalVisible(true);
@@ -811,9 +1022,25 @@ export default function TrackenScreen() {
     const index = compactDays.findIndex((d) => isSameDay(d, selectedDate));
     if (index < 0) return;
     requestAnimationFrame(() => {
-      compactCalendarRef.current?.scrollTo({ x: Math.max(0, index * 64 - 120), animated: true });
+      const x = DAY_ROW_INSET + DAY_ITEM_STEP * index;
+      compactListRef.current?.scrollTo({ x, animated: true });
     });
   }, [compactDays, selectedDate]);
+
+  // Sichtbarer Monat folgt dem Scroll-Offset
+  const updateVisibleMonth = (offsetX: number) => {
+    if (!compactDays.length) return;
+    const approxIndex = Math.round(offsetX / DAY_ITEM_STEP);
+    const clampedIndex = Math.max(0, Math.min(approxIndex, compactDays.length - 1));
+    const day = compactDays[clampedIndex];
+    if (day) {
+      setVisibleMonthDate(day);
+    }
+  };
+
+  useEffect(() => {
+    setVisibleMonthDate(selectedDate);
+  }, [selectedDate]);
 
   const openCheck = () => setShowCheck(true);
   const closeCheck = () => setShowCheck(false);
@@ -888,8 +1115,8 @@ export default function TrackenScreen() {
 
   // Prüft ob ein Tag vor dem Benutzer-Startdatum liegt
   const isBeforeUserStart = (date: Date) => {
-    if (!userStartDate) return false;
-    return isBefore(startOfDay(date), userStartDate);
+    if (!normalizedUserStartDate) return false;
+    return isBefore(startOfDay(date), normalizedUserStartDate);
   };
 
   // Bestimmt die Indikator-Farbe basierend auf dem Tag-Status
@@ -929,7 +1156,7 @@ export default function TrackenScreen() {
   };
 
   const pauseSubtitle = activePause
-    ? `Aktiv bis ${format(parseDateKey(activePause.endDate), 'dd.MM.yyyy', { locale: de })}`
+    ? `Aktiv bis ${format(parseDateKey(activePause.endDate), localeInfo.shortDateFormat, { locale: localeInfo.locale })}`
     : 'Plane eine Konsumpause in wenigen Sekunden';
 
   const topOffset = insets.top + HEADER_TOTAL_HEIGHT + headerAccessoryHeight + (sp.l as number);
@@ -944,57 +1171,52 @@ export default function TrackenScreen() {
       >
         {/* Kompakter iOS-Stil Kalender */}
         <View style={styles.compactCalendarContainer}>
-          <View style={styles.compactCalendarHeader}>
+          <View style={styles.compactCalendarHeaderRow}>
             <Text style={[styles.compactCalendarMonth, { color: palette.text }]}>
-              {format(selectedDate, 'LLLL', { locale: de })}
+              {format(visibleMonthDate, 'LLLL', { locale: localeInfo.locale })}
             </Text>
-          </View>
-          
-          {/* Wochentage Header */}
-          <View style={styles.weekdayHeaderRow}>
-            {WEEKDAY_SHORT.map((abbr) => (
-              <Text key={abbr} style={[styles.weekdayHeaderText, { color: palette.textMuted }]}>
-                {abbr}
-              </Text>
-            ))}
-          </View>
-          
-          {/* Tage als kompakte Boxen */}
-          <ScrollView
-            ref={compactCalendarRef}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={[styles.compactWeekRow, { paddingHorizontal: spacing.s }]}
-          >
-            {compactDays.map((day) => (
-              <DayChip
-                key={day.toISOString()}
-                date={day}
-                selected={isSameDay(day, selectedDate)}
-                hasConsumption={hasConsumption(day)}
-                showStatusIcon={isBefore(startOfDay(day), today)}
-                onPress={() => handleSelectDay(day)}
-                isBeforeStart={isBeforeUserStart(day)}
-                indicatorColor={getIndicatorColor(day)}
-              />
-            ))}
-          </ScrollView>
-          
-          {/* Trennlinie und Expand Button */}
-          <View style={styles.calendarFooter}>
-            <View style={[styles.calendarDivider, { backgroundColor: palette.border }]} />
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Kalender erweitern"
+              accessibilityLabel="Kalender öffnen"
               onPress={openCalendarModal}
+              hitSlop={10}
               style={({ pressed }) => [
-                styles.expandButton,
-                { backgroundColor: palette.surfaceMuted },
-                pressed && { opacity: 0.7 },
+                styles.expandIconButton,
+                { backgroundColor: palette.surfaceMuted, borderColor: palette.border },
+                pressed && { opacity: 0.8, transform: [{ scale: 0.97 }] },
               ]}
             >
-              <Ionicons name="chevron-down" size={18} color={palette.text} />
+              <Ionicons name="calendar-outline" size={18} color={palette.text} />
+              <Ionicons name="chevron-forward" size={16} color={palette.text} />
             </Pressable>
+          </View>
+
+          {/* Tage als kompakte Boxen (full-bleed) */}
+          <View style={styles.compactCalendarChips}>
+            <ScrollView
+              ref={compactListRef}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={[styles.compactWeekRow, { paddingHorizontal: spacing.s }]}
+              onScroll={(e) => updateVisibleMonth(e.nativeEvent.contentOffset.x)}
+              scrollEventThrottle={16}
+              onMomentumScrollEnd={(e) => updateVisibleMonth(e.nativeEvent.contentOffset.x)}
+            >
+              {compactDays.map((item) => (
+                <View key={item.toISOString()} style={{ marginRight: 8 }}>
+                  <DayChip
+                    date={item}
+                    selected={isSameDay(item, selectedDate)}
+                    weekdayLabel={format(item, 'EEE', { locale: localeInfo.locale })}
+                    hasConsumption={hasConsumption(item)}
+                    showStatusIcon={isBefore(startOfDay(item), today)}
+                    onPress={() => handleSelectDay(item)}
+                    isBeforeStart={isBeforeUserStart(item)}
+                    indicatorColor={getIndicatorColor(item)}
+                  />
+                </View>
+              ))}
+            </ScrollView>
           </View>
         </View>
 
@@ -1232,6 +1454,7 @@ export default function TrackenScreen() {
         onClose={() => setActivityModalVisible(false)}
         date={activityDate}
         entries={activityEntriesForLog(activityDate ? dayLogs[formatKey(activityDate)] : undefined)}
+        localeInfo={localeInfo}
       />
 
       <Modal visible={showStroop} animationType="slide" onRequestClose={() => setShowStroop(false)}>
@@ -1305,7 +1528,8 @@ export default function TrackenScreen() {
         onSelectDate={handleSelectDay}
         dayLogs={dayLogs}
         pauseMap={pauseHighlightMap}
-        userStartDate={userStartDate}
+        userStartDate={normalizedUserStartDate}
+        localeInfo={localeInfo}
       />
       {statusMessage ? (
         <View
@@ -1353,7 +1577,16 @@ const styles = StyleSheet.create({
     width: '100%',
     gap: sp.m,
   },
+  compactCalendarChips: {
+    marginHorizontal: -(sp.xl as number),
+    paddingHorizontal: sp.s,
+  },
   compactCalendarHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  compactCalendarHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -1378,22 +1611,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  calendarFooter: {
+  expandIconButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: sp.m,
-  },
-  calendarDivider: {
-    flex: 1,
-    height: 2,
-    borderRadius: 1,
-  },
-  expandButton: {
-    width: 40,
-    height: 32,
+    gap: 6,
+    paddingHorizontal: 10,
+    height: 34,
     borderRadius: radius.m,
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
   },
   // Legacy Kalender-Styles (für Modal)
   calendarCard: {
@@ -1513,6 +1738,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 4,
     opacity: 0, // Unsichtbar aber behält Platz
+  },
+  dayWeekLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginBottom: 4,
+    textTransform: 'uppercase',
   },
   dayNumberBox: {
     width: 52,
@@ -1990,6 +2221,35 @@ const styles = StyleSheet.create({
     color: lt.textMuted,
     marginTop: 4,
   },
+  calendarSummary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: radius.l,
+    padding: sp.m,
+    gap: sp.m,
+  },
+  calendarSummaryItem: {
+    flex: 1,
+    gap: 6,
+  },
+  calendarSummaryLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: lt.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  calendarSummaryValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: lt.text,
+  },
+  calendarSummaryDivider: {
+    width: StyleSheet.hairlineWidth,
+    alignSelf: 'stretch',
+    backgroundColor: lt.border,
+  },
   modalCloseBtn: {
     width: 40,
     height: 40,
@@ -2008,6 +2268,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: sp.l,
     paddingBottom: sp.m,
     gap: sp.l,
+  },
+  calendarLegendRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: sp.s,
+    borderWidth: 1,
+    borderRadius: radius.l,
+    paddingVertical: sp.s,
+    paddingHorizontal: sp.m,
+    marginBottom: sp.s,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  legendLabel: {
+    color: lt.text,
+    fontSize: 12,
+    fontWeight: '600',
   },
   calendarMonthBlock: {
     backgroundColor: lt.surface,
@@ -2043,7 +2329,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: lt.surfaceMuted,
-    padding: 4,
   },
   calendarMonthDayPressed: {
     opacity: 0.9,
@@ -2078,6 +2363,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: lt.text,
+    textAlign: 'center',
+    lineHeight: 18,
   },
   calendarMonthDayTextMuted: {
     color: lt.textMuted,

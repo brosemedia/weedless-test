@@ -44,6 +44,20 @@ const PRESETS = [
 
 const DAY_MS = 86_400_000;
 
+// Hilfsfunktion: Konsistenter Fortschritt auf Basis vergebener XP-Tage
+const getCompletedDaysForPause = (pause: any) => {
+  const total = pauseDurationInDays(pause);
+  const uniqueAwarded = new Set(
+    Array.isArray(pause.xpAwardedDays) ? pause.xpAwardedDays.map((d: string) => d.slice(0, 10)) : []
+  ).size;
+  const done = Math.min(total, uniqueAwarded);
+  if (pause.status === 'aktiv') {
+    return done;
+  }
+  // Bei abgeschlossenen Pausen mindestens total anzeigen
+  return Math.max(done, total);
+};
+
 // Pause Detail Modal
 type PauseDetailModalProps = {
   pause: any;
@@ -217,6 +231,7 @@ function ActivePauseStatusCard({ pause, pauseInfo, completedDays, totalDays, onP
   const isDark = theme.mode === 'dark';
   const pulseScale = useSharedValue(1);
   const pulseOpacity = useSharedValue(0.3);
+  const dotPulse = useSharedValue(0);
   
   React.useEffect(() => {
     // Pulsierende Animation für Hintergrund
@@ -230,11 +245,20 @@ function ActivePauseStatusCard({ pause, pauseInfo, completedDays, totalDays, onP
       -1,
       true
     );
+    dotPulse.value = withRepeat(
+      withTiming(1, { duration: 900, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true
+    );
   }, []);
 
   const pulseStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulseScale.value }],
     opacity: pulseOpacity.value,
+  }));
+  const dotStyle = useAnimatedStyle(() => ({
+    opacity: 0.55 + dotPulse.value * 0.35,
+    transform: [{ scale: 0.9 + dotPulse.value * 0.4 }],
   }));
 
   return (
@@ -268,6 +292,26 @@ function ActivePauseStatusCard({ pause, pauseInfo, completedDays, totalDays, onP
                 opacity: 0.03,
               },
               pulseStyle,
+            ]}
+          />
+
+          {/* Blinkender Aktiv-Dot */}
+          <Animated.View
+            style={[
+              {
+                position: 'absolute',
+                top: spacing.s,
+                right: spacing.s,
+                width: 16,
+                height: 16,
+                borderRadius: 8,
+                backgroundColor: palette.primary,
+                shadowColor: palette.primary,
+                shadowOpacity: isDark ? 0.85 : 0.55,
+                shadowRadius: isDark ? 12 : 8,
+                shadowOffset: { width: 0, height: 0 },
+              },
+              dotStyle,
             ]}
           />
 
@@ -554,7 +598,7 @@ export default function PausePlannerScreen({ navigation }: any) {
             endTimestamp: activePause.endTimestamp,
           });
           const days = pauseDurationInDays(activePause);
-          const completedDays = Math.max(0, Math.floor((now.getTime() - (activePause.startTimestamp || parseDateKey(activePause.startDate).getTime())) / (1000 * 60 * 60 * 24)) + 1);
+          const completedDays = getCompletedDaysForPause(activePause);
           
           return (
             <ActivePauseStatusCard

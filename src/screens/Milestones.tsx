@@ -15,6 +15,7 @@ import { useHeaderTransparency } from '../hooks/useHeaderTransparency';
 import { useUiStore } from '../store/ui';
 import { useApp } from '../store/app';
 import { formatXp } from '../lib/xp';
+import { computeMilestoneCompletion } from '../lib/milestoneProgress';
 
 const formatDays = (value: number) => `${value} ${value === 1 ? 'Tag' : 'Tage'}`;
 
@@ -75,10 +76,17 @@ export default function Milestones() {
   }, [checkins, milestones, currentStreak, agg]);
 
   const progressFor = (m: MilestoneType) => {
-    if (m.kind === 'pause') return m.achievedAt ? 1 : 0;
-    const totalNow = m.kind === 'streak' ? currentStreak : m.kind === 'count' ? checkins.length : agg.moneySaved;
-    const th = m.threshold || 1;
-    return Math.max(0, Math.min(1, totalNow / th));
+    const totalNow =
+      m.kind === 'streak'
+        ? currentStreak
+        : m.kind === 'count'
+        ? checkins.length
+        : m.kind === 'money'
+        ? agg.moneySaved
+        : m.achievedAt
+        ? m.threshold || 1
+        : 0;
+    return computeMilestoneCompletion(totalNow, m);
   };
   const remainingFor = (m: MilestoneType) => {
     if (m.kind === 'pause') return m.achievedAt ? 0 : m.threshold || 1;

@@ -109,20 +109,20 @@ DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
 CREATE POLICY "Users can view own profile"
   ON public.profiles
   FOR SELECT
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 -- Policy: Benutzer können ihr eigenes Profil erstellen
 CREATE POLICY "Users can insert own profile"
   ON public.profiles
   FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK ((select auth.uid()) = user_id);
 
 -- Policy: Benutzer können ihr eigenes Profil aktualisieren
 CREATE POLICY "Users can update own profile"
   ON public.profiles
   FOR UPDATE
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id)
+  WITH CHECK ((select auth.uid()) = user_id);
 
 -- Row Level Security aktivieren
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;

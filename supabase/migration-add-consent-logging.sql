@@ -49,14 +49,14 @@ DROP POLICY IF EXISTS "Users can view own consent logs" ON public.consent_logs;
 CREATE POLICY "Users can view own consent logs"
   ON public.consent_logs
   FOR SELECT
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 -- Users can insert their own consent logs (for app usage)
 DROP POLICY IF EXISTS "Users can insert own consent logs" ON public.consent_logs;
 CREATE POLICY "Users can insert own consent logs"
   ON public.consent_logs
   FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK ((select auth.uid()) = user_id);
 
 -- Note: Users should NOT be able to update or delete consent logs
 -- This ensures audit trail integrity

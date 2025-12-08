@@ -1,3 +1,5 @@
+import { useMemo } from 'react';
+
 import { useApp } from '../store/app';
 import { DayLog, Profile } from '../types/profile';
 import { GRAMS_PER_JOINT_DEFAULT } from './tasks';
@@ -77,137 +79,127 @@ const aggregateLogTotals = (
     { grams: 0, joints: 0, minutes: 0, moneySpent: 0 }
   );
 
-export const useStats = () => {
+export const useStats = (nowOverride?: number) => {
   const profile = useApp((s) => s.profile);
   const logs = useApp((s) => s.dayLogs);
-  if (!profile) return null;
+  const now = nowOverride ?? Date.now();
 
-  const now = Date.now();
-  const startTimestamp = Number.isFinite(profile.startTimestamp) ? profile.startTimestamp : now;
-  const moneyStartTimestamp = Number.isFinite(profile.moneyCalculationStartTimestamp)
-    ? (profile.moneyCalculationStartTimestamp as number)
-    : startTimestamp;
-  
-  // Berechne Stunden seit Start (kann negativ sein, wenn startTimestamp in der Zukunft liegt)
-  const hoursSinceStart = (now - startTimestamp) / HOUR;
-  const hours = Math.max(0, hoursSinceStart);
-  const hoursSinceMoneyStart = (now - moneyStartTimestamp) / HOUR;
-  const hoursMoney = Math.max(0, hoursSinceMoneyStart);
-  const gramsPerJointValue = gramsPerJoint(profile);
-  // WICHTIG: Nur dayLogs nach startTimestamp berücksichtigen
-  const totals = aggregateLogTotals(logs, gramsPerJointValue, startTimestamp);
-  const moneyTotals = aggregateLogTotals(logs, gramsPerJointValue, moneyStartTimestamp);
+  return useMemo(() => {
+    if (!profile) return null;
 
-  const gramsPerHourValue = gramsPerHour(profile);
-  
-  // Debug: Log einmalig wenn Werte 0 sind, aber Baseline vorhanden ist
-  const debugKey = `kpi-debug-${Math.floor(hours * 60)}`;
-  if (hours > 0.001 && gramsPerHourValue > 0 && !(global as any)[debugKey]) {
-    (global as any)[debugKey] = true;
-    const expectedGrams = hours * gramsPerHourValue;
-    const savedGrams = Math.max(0, expectedGrams - totals.grams);
-    if (savedGrams === 0 && expectedGrams > 0) {
-      console.warn('KPI-Debug: savedGrams ist 0, obwohl expectedGrams > 0:', {
+    const startTimestamp = Number.isFinite(profile.startTimestamp) ? profile.startTimestamp : now;
+    const moneyStartTimestamp = Number.isFinite(profile.moneyCalculationStartTimestamp)
+      ? (profile.moneyCalculationStartTimestamp as number)
+      : startTimestamp;
+
+    const hoursSinceStart = (now - startTimestamp) / HOUR;
+    const hours = Math.max(0, hoursSinceStart);
+    const hoursSinceMoneyStart = (now - moneyStartTimestamp) / HOUR;
+    const hoursMoney = Math.max(0, hoursSinceMoneyStart);
+    const gramsPerJointValue = gramsPerJoint(profile);
+    const gramsPerHourValue = gramsPerHour(profile);
+
+    const totals = aggregateLogTotals(logs, gramsPerJointValue, startTimestamp);
+    const moneyTotals = aggregateLogTotals(logs, gramsPerJointValue, moneyStartTimestamp);
+
+    const debugKey = `kpi-debug-${Math.floor(hours * 60)}`;
+    if (hours > 0.001 && gramsPerHourValue > 0 && !(global as any)[debugKey]) {
+      (global as any)[debugKey] = true;
+      const expectedGrams = hours * gramsPerHourValue;
+      const savedGrams = Math.max(0, expectedGrams - totals.grams);
+      if (savedGrams === 0 && expectedGrams > 0) {
+        console.warn('KPI-Debug: savedGrams ist 0, obwohl expectedGrams > 0:', {
+          hours,
+          gramsPerHourValue,
+          expectedGrams,
+          totalsGrams: totals.grams,
+          savedGrams,
+          startTimestamp: profile.startTimestamp,
+          now,
+          diff: now - profile.startTimestamp,
+        });
+      }
+    }
+
+    if (gramsPerHourValue === 0 && hours > 0.01 && !(global as any)['baseline-warning-logged']) {
+      (global as any)['baseline-warning-logged'] = true;
+      console.warn('KPI-Berechnung: Baseline-Werte fehlen!', {
+        gramsPerDayBaseline: profile.gramsPerDayBaseline,
+        jointsPerDayBaseline: profile.jointsPerDayBaseline,
+        startTimestamp: profile.startTimestamp,
         hours,
+      });
+    }
+
+    const expectedGrams = hours * gramsPerHourValue;
+    const expectedGramsMoney = hoursMoney * gramsPerHourValue;
+    const savedGrams = Math.max(0, expectedGramsMoney - moneyTotals.grams);
+    const savedGramsMoney = Math.max(0, expectedGramsMoney - moneyTotals.grams);
+
+    const jointsPerDayBaseline =
+      profile.jointsPerDayBaseline ??
+      (profile.gramsPerDayBaseline && gramsPerJointValue > 0
+        ? profile.gramsPerDayBaseline / gramsPerJointValue
+        : 0);
+    const expectedJoints = jointsPerDayBaseline ? hours * (jointsPerDayBaseline / 24) : 0;
+    const expectedJointsMoney = jointsPerDayBaseline ? hoursMoney * (jointsPerDayBaseline / 24) : 0;
+    const savedJoints = Math.max(0, expectedJointsMoney - moneyTotals.joints);
+
+    const pricePerGram =
+      profile.pricePerGram ??
+      (profile.costPerJoint ? profile.costPerJoint / GRAMS_PER_JOINT_DEFAULT : 0);
+
+    const savedMoney = Math.max(0, savedGramsMoney * pricePerGram - moneyTotals.moneySpent);
+
+    const expectedSessionMinutes =
+      jointsPerDayBaseline > 0 && (profile.avgSessionMinutes ?? 0) > 0
+        ? hours * ((jointsPerDayBaseline / 24) * profile.avgSessionMinutes!)
+        : 0;
+    const minutesSaved = Math.max(0, expectedSessionMinutes - totals.minutes);
+
+    const allZeroKey = 'kpi-all-zero-debug';
+    if (
+      savedGrams === 0 &&
+      savedJoints === 0 &&
+      savedMoney === 0 &&
+      hours > 0.001 &&
+      gramsPerHourValue > 0 &&
+      !(global as any)[allZeroKey]
+    ) {
+      (global as any)[allZeroKey] = true;
+      console.warn('🔍 KPI-Debug: Alle Werte sind 0, obwohl Baseline vorhanden ist:', {
+        hours,
+        hoursSinceStart,
         gramsPerHourValue,
         expectedGrams,
         totalsGrams: totals.grams,
         savedGrams,
         startTimestamp: profile.startTimestamp,
         now,
-        diff: now - profile.startTimestamp,
+        diffMs: now - profile.startTimestamp,
+        diffHours: hoursSinceStart,
+        isFuture: hoursSinceStart < 0,
+        gramsPerDayBaseline: profile.gramsPerDayBaseline,
+        jointsPerDayBaseline: profile.jointsPerDayBaseline,
+        pricePerGram: profile.pricePerGram,
       });
     }
-  }
-  
-  // Warnung, wenn Baseline-Werte fehlen (nur einmal loggen)
-  if (gramsPerHourValue === 0 && hours > 0.01 && !(global as any)['baseline-warning-logged']) {
-    (global as any)['baseline-warning-logged'] = true;
-    console.warn('KPI-Berechnung: Baseline-Werte fehlen!', {
-      gramsPerDayBaseline: profile.gramsPerDayBaseline,
-      jointsPerDayBaseline: profile.jointsPerDayBaseline,
-      startTimestamp: profile.startTimestamp,
-      hours,
-    });
-  }
-  
-  const expectedGrams = hours * gramsPerHourValue;
-  const expectedGramsMoney = hoursMoney * gramsPerHourValue;
-  const savedGrams = Math.max(0, expectedGramsMoney - moneyTotals.grams);
-  const savedGramsMoney = Math.max(0, expectedGramsMoney - moneyTotals.grams);
-  
-  // Debug: Log einmalig wenn alle KPIs 0 sind, aber Baseline vorhanden ist
-  const allZeroKey = 'kpi-all-zero-debug';
-  if (
-    savedGrams === 0 &&
-    savedJoints === 0 &&
-    savedMoney === 0 &&
-    hours > 0.001 &&
-    gramsPerHourValue > 0 &&
-    !(global as any)[allZeroKey]
-  ) {
-    (global as any)[allZeroKey] = true;
-    console.warn('🔍 KPI-Debug: Alle Werte sind 0, obwohl Baseline vorhanden ist:', {
-      hours,
-      hoursSinceStart,
-      gramsPerHourValue,
-      expectedGrams,
-      totalsGrams: totals.grams,
-      savedGrams,
-      startTimestamp: profile.startTimestamp,
-      now,
-      diffMs: now - profile.startTimestamp,
-      diffHours: hoursSinceStart,
-      isFuture: hoursSinceStart < 0,
-      gramsPerDayBaseline: profile.gramsPerDayBaseline,
-      jointsPerDayBaseline: profile.jointsPerDayBaseline,
-      pricePerGram: profile.pricePerGram,
-    });
-  }
-  
-  const jointsPerDayBaseline =
-    profile.jointsPerDayBaseline ??
-    (profile.gramsPerDayBaseline && gramsPerJointValue > 0
-      ? profile.gramsPerDayBaseline / gramsPerJointValue
-      : 0);
-  const expectedJoints = jointsPerDayBaseline ? hours * (jointsPerDayBaseline / 24) : 0;
-  const expectedJointsMoney = jointsPerDayBaseline ? hoursMoney * (jointsPerDayBaseline / 24) : 0;
-  const savedJoints = Math.max(0, expectedJointsMoney - moneyTotals.joints);
 
-  const pricePerGram =
-    profile.pricePerGram ??
-    (profile.costPerJoint ? profile.costPerJoint / GRAMS_PER_JOINT_DEFAULT : 0);
-
-  const savedMoney = Math.max(0, savedGramsMoney * pricePerGram - moneyTotals.moneySpent);
-
-  const expectedSessionMinutes =
-    jointsPerDayBaseline > 0 && (profile.avgSessionMinutes ?? 0) > 0
-      ? hours * ((jointsPerDayBaseline / 24) * profile.avgSessionMinutes!)
-      : 0;
-  const minutesSaved = Math.max(0, expectedSessionMinutes - totals.minutes);
-
-  const locale = profile.locale ?? 'de-DE';
-  return {
-    profile,
-    hours,
-    savedMoney,
-    savedGrams,
-    savedJoints,
-    minutesSaved,
-    fmtEUR: (v: number) =>
+    const locale = profile.locale ?? 'de-DE';
+    const fmtEUR = (v: number) =>
       new Intl.NumberFormat(locale, {
         style: 'currency',
         currency: 'EUR',
         maximumFractionDigits: 2,
-      }).format(v),
-    fmtG: (g: number) => {
+      }).format(v);
+    const fmtG = (g: number) => {
       const fractionDigits = g < 1 ? 3 : 1;
       return new Intl.NumberFormat(locale, {
         minimumFractionDigits: fractionDigits,
         maximumFractionDigits: fractionDigits,
       }).format(g);
-    },
-    fmtJ: (j: number) => {
+    };
+    const fmtJ = (j: number) => {
       if (j < 10) {
         return new Intl.NumberFormat(locale, {
           minimumFractionDigits: 1,
@@ -217,14 +209,27 @@ export const useStats = () => {
       return new Intl.NumberFormat(locale, {
         maximumFractionDigits: 0,
       }).format(j);
-    },
-    fmtMM: (m: number) => {
+    };
+    const fmtMM = (m: number) => {
       const total = Math.floor(m);
       const hh = Math.floor(total / 60)
         .toString()
         .padStart(2, '0');
       const mm = (total % 60).toString().padStart(2, '0');
       return `${hh}:${mm}`;
-    },
-  };
+    };
+
+    return {
+      profile,
+      hours,
+      savedMoney,
+      savedGrams,
+      savedJoints,
+      minutesSaved,
+      fmtEUR,
+      fmtG,
+      fmtJ,
+      fmtMM,
+    };
+  }, [logs, now, profile]);
 };

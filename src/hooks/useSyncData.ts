@@ -57,27 +57,17 @@ export function useSyncData() {
             }
           }
 
-          // Normalize KPI selection based on consumption methods
+          // KPI-Auswahl nicht mehr zurücksetzen/trunkieren:
+          // Wir behalten die bestehende Auswahl inkl. Reihenfolge und Länge.
+          // Wenn gar nichts gewählt ist, setzen wir auf DEFAULT_KPIS.
           try {
-            const { useUiStore } = await import('../store/ui');
-            const methods = syncData.profile.consumptionMethods ?? [];
-            const hasJoints = methods.some((m) => m === 'joints' || m === 'blunts');
-            const hasSessions = methods.some((m) => m === 'bongs' || m === 'pipes');
+            const { useUiStore, DEFAULT_KPIS } = await import('../store/ui');
             const { selectedKpis, setSelectedKpis } = useUiStore.getState();
-            let next = [...selectedKpis];
-            if (!hasJoints && hasSessions) {
-              next = next.map((kpi) => (kpi === 'joints' ? 'time' : kpi));
-              if (!next.includes('time')) next.push('time');
-              next = Array.from(new Set(next));
-            } else if (!hasJoints && !hasSessions) {
-              next = next.filter((kpi) => kpi !== 'joints');
-            }
-            if (next.length === 0) next = ['money', 'time', 'grams', 'streak'].slice(0, selectedKpis.length || 4);
-            if (next.join('|') !== selectedKpis.join('|')) {
-              setSelectedKpis(next.slice(0, 4));
+            if (!selectedKpis || selectedKpis.length === 0) {
+              setSelectedKpis(DEFAULT_KPIS);
             }
           } catch (uiError) {
-            console.warn('Could not normalize KPIs:', uiError);
+            console.warn('Could not keep KPI selection:', uiError);
           }
         }
 

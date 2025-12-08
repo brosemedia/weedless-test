@@ -133,20 +133,20 @@ DROP POLICY IF EXISTS "Users can view own app profile" ON public.app_profiles;
 CREATE POLICY "Users can view own app profile"
   ON public.app_profiles
   FOR SELECT
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 DROP POLICY IF EXISTS "Users can insert own app profile" ON public.app_profiles;
 CREATE POLICY "Users can insert own app profile"
   ON public.app_profiles
   FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK ((select auth.uid()) = user_id);
 
 DROP POLICY IF EXISTS "Users can update own app profile" ON public.app_profiles;
 CREATE POLICY "Users can update own app profile"
   ON public.app_profiles
   FOR UPDATE
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id)
+  WITH CHECK ((select auth.uid()) = user_id);
 
 -- ============================================
 -- RLS POLICIES: day_logs
@@ -155,26 +155,26 @@ DROP POLICY IF EXISTS "Users can view own day logs" ON public.day_logs;
 CREATE POLICY "Users can view own day logs"
   ON public.day_logs
   FOR SELECT
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 DROP POLICY IF EXISTS "Users can insert own day logs" ON public.day_logs;
 CREATE POLICY "Users can insert own day logs"
   ON public.day_logs
   FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK ((select auth.uid()) = user_id);
 
 DROP POLICY IF EXISTS "Users can update own day logs" ON public.day_logs;
 CREATE POLICY "Users can update own day logs"
   ON public.day_logs
   FOR UPDATE
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id)
+  WITH CHECK ((select auth.uid()) = user_id);
 
 DROP POLICY IF EXISTS "Users can delete own day logs" ON public.day_logs;
 CREATE POLICY "Users can delete own day logs"
   ON public.day_logs
   FOR DELETE
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 -- ============================================
 -- RLS POLICIES: pauses
@@ -183,26 +183,26 @@ DROP POLICY IF EXISTS "Users can view own pauses" ON public.pauses;
 CREATE POLICY "Users can view own pauses"
   ON public.pauses
   FOR SELECT
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 DROP POLICY IF EXISTS "Users can insert own pauses" ON public.pauses;
 CREATE POLICY "Users can insert own pauses"
   ON public.pauses
   FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK ((select auth.uid()) = user_id);
 
 DROP POLICY IF EXISTS "Users can update own pauses" ON public.pauses;
 CREATE POLICY "Users can update own pauses"
   ON public.pauses
   FOR UPDATE
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id)
+  WITH CHECK ((select auth.uid()) = user_id);
 
 DROP POLICY IF EXISTS "Users can delete own pauses" ON public.pauses;
 CREATE POLICY "Users can delete own pauses"
   ON public.pauses
   FOR DELETE
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 -- ============================================
 -- TRIGGER: updated_at automatisch aktualisieren

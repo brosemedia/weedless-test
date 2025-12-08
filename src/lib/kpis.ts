@@ -74,13 +74,25 @@ export function safeProgress(value: number): number {
   return value;
 }
 
-function progressModulo(current: number, step: number): number {
+/**
+ * Fortschritt, der an die gerundete Anzeige gekoppelt ist:
+ * - Nutzt eine Halb-Schritt-Korrektur (step/2), damit Balken und Zahl gleichzeitig umspringen.
+ * - Vermeidet Floating-Point-Drift mit kleinem Epsilon.
+ */
+function progressAlignedToRounded(current: number, step: number): number {
   if (!Number.isFinite(current) || !Number.isFinite(step) || step <= 0) {
     return 0;
   }
-  const remainder = ((current % step) + step) % step;
+  const epsilon = step * 1e-6;
+  const halfStep = step / 2;
+  const adjusted = Math.max(0, current + halfStep + epsilon);
+  const bucket = Math.floor(adjusted / step) * step;
+  const remainder = adjusted - bucket;
   return safeProgress(remainder / step);
 }
+
+// Legacy-Wrapper für bestehende Aufrufer
+export const progressModulo = progressAlignedToRounded;
 
 export function getResponsiveFontSize(value: string): number {
   const len = value.length;
@@ -109,7 +121,7 @@ export const KPI_CONFIGS: KpiConfig[] = [
       return `${nf.format(d.totalXp)} XP`;
     },
     getSubline: (d) => `Level ${d.currentLevel}`,
-    getProgress: (d) => progressModulo(d.totalXp, 100),
+    getProgress: (d) => progressAlignedToRounded(d.totalXp, 100),
   },
   {
     type: 'daysSinceConsumption',
@@ -190,7 +202,7 @@ export const KPI_CONFIGS: KpiConfig[] = [
     label: 'Geld gespart',
     getValue: (d) => d.fmtEUR(d.savedMoney),
     getSubline: (d) => `≈ ${d.fmtEUR(d.moneyPerHour)} /h`,
-    getProgress: (d) => progressModulo(d.savedMoney, 0.01),
+    getProgress: (d) => progressAlignedToRounded(d.savedMoney, 0.01),
   },
   {
     type: 'grams',
@@ -201,7 +213,7 @@ export const KPI_CONFIGS: KpiConfig[] = [
       const nf = new Intl.NumberFormat(d.locale, { maximumFractionDigits: 2 });
       return `≈ ${nf.format(d.gramsPerHour)} g/h`;
     },
-    getProgress: (d) => progressModulo(d.savedGrams, 0.001),
+    getProgress: (d) => progressAlignedToRounded(d.savedGrams, 0.001),
   },
   {
     type: 'joints',
@@ -212,7 +224,7 @@ export const KPI_CONFIGS: KpiConfig[] = [
       const nf = new Intl.NumberFormat(d.locale, { maximumFractionDigits: 2 });
       return `≈ ${nf.format(d.jointsPerHour)} /h`;
     },
-    getProgress: (d) => progressModulo(d.savedJoints, 1),
+    getProgress: (d) => progressAlignedToRounded(d.savedJoints, 1),
   },
   {
     type: 'time',
@@ -223,7 +235,7 @@ export const KPI_CONFIGS: KpiConfig[] = [
       const nf = new Intl.NumberFormat(d.locale, { maximumFractionDigits: 2 });
       return `≈ ${nf.format(d.minutesPerHour)} min/h`;
     },
-    getProgress: (d) => progressModulo(d.minutesSaved, 1),
+    getProgress: (d) => progressAlignedToRounded(d.minutesSaved, 1),
   },
   {
     type: 'streak',
@@ -428,6 +440,8 @@ export function buildKpiData({
   profile,
   xp,
 }: BuildKpiDataParams): KpiData {
+  const dayLogValues = Object.values(dayLogs);
+  const dayLogEntries = Object.entries(dayLogs);
   const fallbackProfile: Profile = profile ?? stats?.profile ?? {
     startTimestamp: Date.now(),
     version: 1,
@@ -504,9 +518,7 @@ export function buildKpiData({
   const moneyPerHour = gramsPerHour * pricePerGram;
   const minutesPerHour = (statsProfile.avgSessionMinutes ?? 0) * jointsPerHour;
 
-  const totalXp =
-    xp?.totalXp ??
-    Object.values(dayLogs).reduce((sum, log) => sum + (log.xpEarned ?? 0), 0);
+  const totalXp = xp?.totalXp ?? dayLogValues.reduce((sum, log) => sum + (log.xpEarned ?? 0), 0);
   const currentLevel = xp?.currentLevel ?? 1;
 
   const daysSinceConsumption = (() => {
@@ -515,7 +527,7 @@ export function buildKpiData({
     const lastFromProfile = profile?.lastConsumptionAt ?? statsProfile.lastConsumptionAt;
     let lastTimestamp = Number.isFinite(lastFromProfile) ? Number(lastFromProfile) : null;
 
-    const consumptionDates = Object.entries(dayLogs)
+    const consumptionDates = dayLogEntries
       .filter(([, log]) => (log.consumedGrams ?? 0) > 0 || (log.consumedJoints ?? 0) > 0)
       .map(([key, log]) => log.date ?? key);
 
@@ -538,7 +550,7 @@ export function buildKpiData({
   })();
 
   const { avgMood, moodCheckinCount } = (() => {
-    const moods = Object.values(dayLogs)
+    const moods = dayLogValues
       .map((log) => log.checkin?.mood1to5)
       .filter((m): m is number => typeof m === 'number' && m >= 1 && m <= 5);
     if (moods.length === 0) return { avgMood: 0, moodCheckinCount: 0 };
@@ -547,7 +559,7 @@ export function buildKpiData({
   })();
 
   const { avgSleep, sleepCheckinCount } = (() => {
-    const sleeps = Object.values(dayLogs)
+    const sleeps = dayLogValues
       .map((log) => log.checkin?.sleepHours)
       .filter((s): s is number => typeof s === 'number' && s > 0 && s <= 24);
     if (sleeps.length === 0) return { avgSleep: 0, sleepCheckinCount: 0 };
@@ -564,7 +576,7 @@ export function buildKpiData({
 
   const reactionData = (() => {
     const reactions: Array<{ ms: number; date: string }> = [];
-    Object.entries(dayLogs).forEach(([key, log]) => {
+    dayLogEntries.forEach(([key, log]) => {
       const ms = log.tests?.reactionMs;
       if (typeof ms === 'number' && ms > 0) {
         const dateKey = log.date ?? key;
@@ -609,7 +621,7 @@ export function buildKpiData({
     };
   })();
 
-  const totalMoneySpent = Object.values(dayLogs).reduce(
+  const totalMoneySpent = dayLogValues.reduce(
     (sum, log) => sum + (log.moneySpentEUR ?? 0),
     0
   );
@@ -619,7 +631,7 @@ export function buildKpiData({
       statsProfile.gramsPerDayBaseline && statsProfile.jointsPerDayBaseline
         ? statsProfile.gramsPerDayBaseline / Math.max(1, statsProfile.jointsPerDayBaseline)
         : GRAMS_PER_JOINT_DEFAULT;
-    return Object.values(dayLogs).reduce((sum, log) => {
+    return dayLogValues.reduce((sum, log) => {
       if (typeof log.consumedGrams === 'number') return sum + log.consumedGrams;
       if (typeof log.consumedJoints === 'number') return sum + log.consumedJoints * gramsPerJoint;
       return sum;
@@ -636,7 +648,7 @@ export function buildKpiData({
       consumptionTimestamps.push(statsProfile.lastConsumptionAt);
     }
 
-    Object.values(dayLogs).forEach((log) => {
+    dayLogValues.forEach((log) => {
       if ((log.consumedGrams ?? 0) > 0 || (log.consumedJoints ?? 0) > 0) {
         const [year, month, day] = log.date.split('-').map((part) => parseInt(part, 10));
         if (Number.isFinite(year) && Number.isFinite(month) && Number.isFinite(day)) {

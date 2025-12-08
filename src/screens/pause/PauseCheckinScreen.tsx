@@ -31,7 +31,7 @@ import Animated, {
   Extrapolation,
   runOnJS,
 } from 'react-native-reanimated';
-import { haptics } from '../../services/haptics';
+import { haptics, type HapticIntensity } from '../../services/haptics';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../theme/useTheme';
 import { ThemedText } from '../../design/theme';
@@ -50,7 +50,15 @@ import {
 import type { DayLog } from '../../types/profile';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const HAPTIC_THRESHOLDS = [0.25, 0.5, 0.75]; // Schwellen für Haptik-Impulse
+
+// Worklet-freundliche Haptik-Abstufung (UI-Thread safe)
+const resolveHapticIntensityWorklet = (normalized: number): HapticIntensity | null => {
+  'worklet';
+  if (normalized >= 0.8) return 'heavy';
+  if (normalized >= 0.5) return 'medium';
+  if (normalized >= 0.2) return 'light';
+  return null;
+};
 
 // Slider Track Konfiguration (außerhalb der Komponente für Stabilität)
 const TRACK_WIDTH = SCREEN_WIDTH * 0.85;
@@ -69,6 +77,7 @@ export default function PauseCheckinScreen({ navigation }: PauseCheckinScreenPro
   
   const profile = useApp((s) => s.profile);
   const dayLogs = useApp((s) => s.dayLogs);
+  const activePause = useApp((s) => s.pauses.find((pause) => pause.status === 'aktiv'));
   const upsertDayLog = useApp((s) => s.upsertDayLog);
   const addDailyCheckIn = useApp((s) => s.addDailyCheckIn);
   
@@ -78,7 +87,7 @@ export default function PauseCheckinScreen({ navigation }: PauseCheckinScreenPro
   
   const translateX = useSharedValue(0);
   const isDragging = useSharedValue(false);
-  const lastHapticThreshold = useSharedValue<number | null>(null);
+  const lastHapticThreshold = useSharedValue<number>(0);
   
   const gramsPerJoint = gramsPerJointFromProfile(profile);
   const defaultAmountSuggestion = deriveDefaultAmountSpent(dayLogs, profile);
@@ -93,16 +102,20 @@ export default function PauseCheckinScreen({ navigation }: PauseCheckinScreenPro
   }, [addDailyCheckIn, navigation]);
 
   // Wrapper-Funktionen für Haptik (runOnJS benötigt synchrone Funktionen)
-  const triggerHapticThreshold = useCallback(() => {
-    haptics.trigger('pause', 'threshold').catch((error) => {
-      console.warn('[PauseCheckin] Haptic error:', error);
-    });
+  const triggerHapticThreshold = useCallback((intensity: HapticIntensity) => {
+    haptics
+      .trigger('pause', 'threshold', { intensity })
+      .catch((error) => {
+        console.warn('[PauseCheckin] Haptic error:', error);
+      });
   }, []);
 
-  const triggerHapticSuccess = useCallback(() => {
-    haptics.trigger('pause', 'success').catch((error) => {
-      console.warn('[PauseCheckin] Haptic error:', error);
-    });
+  const triggerHapticSuccess = useCallback((intensity: HapticIntensity) => {
+    haptics
+      .trigger('pause', 'success', { intensity })
+      .catch((error) => {
+        console.warn('[PauseCheckin] Haptic error:', error);
+      });
   }, []);
   
   
@@ -111,28 +124,23 @@ export default function PauseCheckinScreen({ navigation }: PauseCheckinScreenPro
     return Gesture.Pan()
       .onStart(() => {
         isDragging.value = true;
-        lastHapticThreshold.value = -1;
+        lastHapticThreshold.value = 0;
       })
       .onUpdate((e) => {
         // Begrenze die Bewegung auf den Track
         const newValue = Math.max(-MAX_TRANSLATE, Math.min(MAX_TRANSLATE, e.translationX));
         translateX.value = newValue;
         
-        // Vereinfachte Haptik-Impulse bei Schwellen
+        // Haptik-Impulse mit dynamischer Intensität nach Distanz
         const normalized = Math.abs(newValue) / MAX_TRANSLATE;
-        let thresholdIndex = -1;
-        
-        if (normalized >= 0.75) {
-          thresholdIndex = 2;
-        } else if (normalized >= 0.5) {
-          thresholdIndex = 1;
-        } else if (normalized >= 0.25) {
-          thresholdIndex = 0;
-        }
-        
-        if (thresholdIndex !== -1 && lastHapticThreshold.value !== thresholdIndex) {
-          lastHapticThreshold.value = thresholdIndex;
-          runOnJS(triggerHapticThreshold)();
+        const intensity = resolveHapticIntensityWorklet(normalized);
+        const bucket = intensity === 'heavy' ? 3 : intensity === 'medium' ? 2 : intensity === 'light' ? 1 : 0;
+
+        if (bucket > 0 && lastHapticThreshold.value !== bucket) {
+          lastHapticThreshold.value = bucket;
+          runOnJS(triggerHapticThreshold)(intensity as HapticIntensity);
+        } else if (bucket === 0) {
+          lastHapticThreshold.value = 0;
         }
       })
       .onEnd(() => {
@@ -141,7 +149,9 @@ export default function PauseCheckinScreen({ navigation }: PauseCheckinScreenPro
         
         if (absTranslate >= SWIPE_THRESHOLD) {
           // Auslösung - stärkeres Haptik-Feedback
-          runOnJS(triggerHapticSuccess)();
+          const normalized = absTranslate / MAX_TRANSLATE;
+          const successIntensity = resolveHapticIntensityWorklet(normalized) ?? 'medium';
+          runOnJS(triggerHapticSuccess)(successIntensity);
           
           if (translateX.value < 0) {
             // Nach links: "Ich habe geraucht"
@@ -328,6 +338,31 @@ export default function PauseCheckinScreen({ navigation }: PauseCheckinScreenPro
           <Text style={{ color: textMutedColor, fontSize: 16, textAlign: 'center', marginTop: spacing.m, lineHeight: 22, textShadowColor: 'rgba(0, 0, 0, 0.2)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 }}>
             Wische nach links oder rechts, um deinen Status anzugeben.
           </Text>
+        </View>
+
+        {/* Info-Karten */}
+        <View style={styles.infoRow}>
+          <View style={[styles.infoCard, { backgroundColor: 'rgba(255, 255, 255, 0.14)' }]}>
+            <MaterialCommunityIcons name="clock-check" size={22} color={textColor} />
+            <View style={{ marginLeft: spacing.m, flex: 1 }}>
+              <Text style={styles.infoTitle}>Check-in Rhythmus</Text>
+              <Text style={[styles.infoText, { color: textMutedColor }]}>
+                Wir fragen dich nur ca. alle 2 Stunden – kein Dauerspam.
+              </Text>
+            </View>
+          </View>
+
+          <View style={[styles.infoCard, { backgroundColor: 'rgba(255, 255, 255, 0.12)' }]}>
+            <MaterialCommunityIcons name="leaf" size={22} color={textColor} />
+            <View style={{ marginLeft: spacing.m, flex: 1 }}>
+              <Text style={styles.infoTitle}>Aktive Pause</Text>
+              <Text style={[styles.infoText, { color: textMutedColor }]}>
+                {activePause
+                  ? `Start ${activePause.startDate} · Ende ${activePause.endDate}`
+                  : 'Bleib dran, du bist auf Kurs.'}
+              </Text>
+            </View>
+          </View>
         </View>
         
         {/* Swipe-Bereich - zentriert */}
@@ -633,6 +668,29 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     alignItems: 'center',
     marginTop: spacing.m,
+  },
+  infoRow: {
+    marginBottom: spacing.l,
+  },
+  infoCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.m,
+    borderRadius: radius.l,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+    marginBottom: spacing.s,
+  },
+  infoTitle: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  infoText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#FFFFFF',
   },
 });
 

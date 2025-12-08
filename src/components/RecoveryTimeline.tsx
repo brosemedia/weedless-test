@@ -14,13 +14,13 @@ const CARD_ANIM_DELAY = 90;
 const CONNECTOR_HEIGHT = 8;
 const CARD_GAP = 28;
 const BASE_PADDING = 28;
-const CARD_HEIGHT = 260;
+const CARD_HEIGHT = 300;
 const EDGE_PEEK = 16;
 const EDGE_FADE_WIDTH = 28;
 const CARD_SCALE_MAX = 1.06;
 const ACTIVE_CARD_EXTRA_WIDTH = 34;
 const SCALED_CARD_HEIGHT = CARD_HEIGHT * CARD_SCALE_MAX;
-const CARD_VERTICAL_PADDING = (SCALED_CARD_HEIGHT - CARD_HEIGHT) / 2 + 12;
+const CARD_VERTICAL_PADDING = (SCALED_CARD_HEIGHT - CARD_HEIGHT) / 2 + 8;
 const ARROW_VERTICAL_OFFSET = CARD_VERTICAL_PADDING + SCALED_CARD_HEIGHT / 2 - 22;
 const MIN_SIDE_PADDING = spacing.l;
 const EDGE_FADE_MARGIN = spacing.l;
@@ -59,6 +59,7 @@ export default function RecoveryTimeline({ sinceStartDays = 0, onCardPress }: Pr
   const palette = theme.colors;
   const styles = useThemedStyles(createStyles);
   const reachedStyles = useMemo(() => createReachedStyles(palette), [palette]);
+  const frostedTint = theme.mode === 'dark' ? 'dark' : 'light';
   const [viewportWidth, setViewportWidth] = useState(0);
   const cardGap = CARD_GAP;
   const basePadding = BASE_PADDING;
@@ -80,9 +81,9 @@ export default function RecoveryTimeline({ sinceStartDays = 0, onCardPress }: Pr
   const fadeEndColor = theme.mode === 'dark' ? 'rgba(15,26,20,0)' : 'rgba(255,255,255,0)';
   const cardAnimations = useCardAnimations(milestones.length);
   const reachedCardBackground = theme.mode === 'dark' ? 'rgba(143,177,58,0.18)' : 'rgba(161,166,31,0.12)';
-  const baseCardBackground = theme.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)';
+  const baseCardBackground = theme.mode === 'dark' ? 'rgba(26,40,31,0.9)' : 'rgba(255,255,255,0.06)';
   const reachedOverlay = theme.mode === 'dark' ? 'rgba(143,177,58,0.28)' : 'rgba(161,166,31,0.32)';
-  const baseOverlay = theme.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.18)';
+  const baseOverlay = theme.mode === 'dark' ? 'rgba(15,26,20,0.7)' : 'rgba(255,255,255,0.18)';
   const scrollX = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef<ScrollView | null>(null);
   const scrollLockRef = useRef(false);
@@ -223,12 +224,12 @@ export default function RecoveryTimeline({ sinceStartDays = 0, onCardPress }: Pr
         ref={scrollViewRef as any}
         horizontal
         showsHorizontalScrollIndicator={false}
-        style={{ height: SCALED_CARD_HEIGHT + CARD_VERTICAL_PADDING * 2, overflow: 'visible' }}
+        style={{ minHeight: SCALED_CARD_HEIGHT + CARD_VERTICAL_PADDING * 2 + 12, overflow: 'visible' }}
         contentContainerStyle={{
           paddingBottom: 16,
           paddingHorizontal: outerPadding,
           paddingVertical: CARD_VERTICAL_PADDING,
-          minHeight: SCALED_CARD_HEIGHT,
+          minHeight: SCALED_CARD_HEIGHT + 16,
           alignItems: 'center',
         }}
         decelerationRate="fast"
@@ -305,9 +306,6 @@ export default function RecoveryTimeline({ sinceStartDays = 0, onCardPress }: Pr
                             <Text style={[styles.tag, styles.tagReached]}>
                               {milestone.timeLabel.toUpperCase()}
                             </Text>
-                            <View style={[styles.cardActionIconWrapper, styles.cardActionIconWrapperReached]}>
-                              <Text style={[styles.cardActionIcon, styles.cardActionIconReached]}>›</Text>
-                            </View>
                           </View>
                           {milestone.emoji ? (
                             <Text style={styles.icon}>{milestone.emoji}</Text>
@@ -318,6 +316,9 @@ export default function RecoveryTimeline({ sinceStartDays = 0, onCardPress }: Pr
                           <Text style={[styles.note, styles.noteReached]} numberOfLines={5} ellipsizeMode="tail">
                             {milestone.subtitle}
                           </Text>
+                          <Pressable onPress={() => handleCardPress(milestone)} style={[styles.readMoreButton, styles.readMoreButtonReached]}>
+                            <Text style={[styles.readMoreLabel, styles.readMoreLabelReached]}>Mehr lesen</Text>
+                          </Pressable>
                         </LinearGradient>
                       ) : (
                         <FrostedSurface
@@ -325,15 +326,13 @@ export default function RecoveryTimeline({ sinceStartDays = 0, onCardPress }: Pr
                           intensity={65}
                           fallbackColor={baseCardBackground}
                           overlayColor={baseOverlay}
+                          tint={frostedTint}
                           style={styles.card}
                         >
                           <View style={styles.cardHeader}>
                             <Text style={styles.tag}>
                               {milestone.timeLabel.toUpperCase()}
                             </Text>
-                            <View style={styles.cardActionIconWrapper}>
-                              <Text style={styles.cardActionIcon}>›</Text>
-                            </View>
                           </View>
                           {milestone.emoji ? (
                             <Text style={styles.icon}>{milestone.emoji}</Text>
@@ -344,6 +343,9 @@ export default function RecoveryTimeline({ sinceStartDays = 0, onCardPress }: Pr
                           <Text style={styles.note} numberOfLines={5} ellipsizeMode="tail">
                             {milestone.subtitle}
                           </Text>
+                          <Pressable onPress={() => handleCardPress(milestone)} style={styles.readMoreButton}>
+                            <Text style={styles.readMoreLabel}>Mehr lesen</Text>
+                          </Pressable>
                         </FrostedSurface>
                       )}
                     </Pressable>
@@ -465,7 +467,7 @@ const createReachedStyles = (colors: ThemeColors) => ({
 const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     wrapper: {
-      paddingVertical: CARD_VERTICAL_PADDING + 8,
+      paddingVertical: CARD_VERTICAL_PADDING,
       position: 'relative',
       overflow: 'visible',
     },
@@ -473,7 +475,7 @@ const createStyles = (colors: ThemeColors) =>
       flexDirection: 'row',
       alignItems: 'flex-start',
       flexWrap: 'nowrap',
-      paddingVertical: CARD_VERTICAL_PADDING,
+      paddingVertical: CARD_VERTICAL_PADDING - 2,
       minHeight: SCALED_CARD_HEIGHT + CARD_VERTICAL_PADDING * 2,
     },
     connectorWrapper: {
@@ -533,7 +535,7 @@ const createStyles = (colors: ThemeColors) =>
     },
     cardShell: {
       borderRadius: 22,
-      height: SCALED_CARD_HEIGHT,
+      minHeight: SCALED_CARD_HEIGHT,
       width: '100%',
       shadowColor: colors.primary,
       shadowOpacity: 0.25,
@@ -548,19 +550,20 @@ const createStyles = (colors: ThemeColors) =>
       borderRadius: 22,
       borderWidth: 2,
       borderColor: colors.primary,
-      paddingVertical: 22,
-      paddingHorizontal: 14,
+      paddingVertical: 20,
+      paddingHorizontal: 16,
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 8,
+      gap: 10,
       minHeight: SCALED_CARD_HEIGHT - 20,
     },
     cardHeader: {
       width: '100%',
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingTop: 2,
+      justifyContent: 'center',
+      paddingTop: 0,
+      marginBottom: 2,
     },
     cardReached: {
       borderColor: 'rgba(255, 255, 255, 0.3)',
@@ -589,35 +592,35 @@ const createStyles = (colors: ThemeColors) =>
       fontSize: 38,
       marginBottom: 4,
     },
-    cardActionIconWrapper: {
-      width: 28,
-      height: 28,
-      borderRadius: 14,
-      borderWidth: 1,
-      borderColor: colors.primary,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginLeft: spacing.s,
-    },
-    cardActionIconWrapperReached: {
-      borderColor: '#FFFFFF',
-      backgroundColor: 'rgba(255,255,255,0.12)',
-    },
-    cardActionIcon: {
-      fontSize: 18,
-      color: colors.primary,
-    },
-    cardActionIconReached: {
-      color: '#FFFFFF',
-    },
     note: {
       fontSize: 13,
       lineHeight: 18,
-      color: colors.textMuted,
+      color: colors.text,
       textAlign: 'center',
     },
     noteReached: {
       color: 'rgba(255, 255, 255, 0.95)',
+    },
+    readMoreButton: {
+      marginTop: 8,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.primary,
+      backgroundColor: colors.surface,
+    },
+    readMoreButtonReached: {
+      borderColor: '#FFFFFF',
+      backgroundColor: 'rgba(255,255,255,0.14)',
+    },
+    readMoreLabel: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    readMoreLabelReached: {
+      color: '#FFFFFF',
     },
     edgeFade: {
       position: 'absolute',

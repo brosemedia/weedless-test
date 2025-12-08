@@ -1,5 +1,5 @@
 import React from 'react';
-import { View } from 'react-native';
+import { View, Animated, Easing } from 'react-native';
 import { FrostedSurface } from '../design/FrostedSurface';
 import { ThemedText, PrimaryButton } from '../design/theme';
 import { spacing, radius } from '../design/tokens';
@@ -18,6 +18,32 @@ type PauseCardProps = {
 export function PauseCard({ activePause, onPressDetails, onPressPlan, now = new Date() }: PauseCardProps) {
   const { theme } = useTheme();
   const palette = theme.colors;
+  const isDark = theme.mode === 'dark';
+  const pulseAnim = React.useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    if (!activePause) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.out(Easing.circle),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0,
+          duration: 900,
+          easing: Easing.in(Easing.circle),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => {
+      loop.stop();
+    };
+  }, [activePause, pulseAnim]);
 
   if (!activePause) {
     return (
@@ -55,6 +81,8 @@ export function PauseCard({ activePause, onPressDetails, onPressPlan, now = new 
   });
   const timeLabel = pauseInfo?.displayLabel ?? 'Pause beendet';
   const progress = Math.min(1, doneDays / Math.max(1, totalDays));
+  const pulseScale = pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.4] });
+  const pulseOpacity = pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 0] });
 
   return (
     <FrostedSurface
@@ -63,6 +91,7 @@ export function PauseCard({ activePause, onPressDetails, onPressPlan, now = new 
       fallbackColor={palette.info}
       overlayColor="rgba(0,0,0,0.1)"
       style={{
+        position: 'relative',
         padding: spacing.l as any,
         gap: spacing.m as any,
         shadowColor: palette.primary,
@@ -72,6 +101,42 @@ export function PauseCard({ activePause, onPressDetails, onPressPlan, now = new 
         elevation: 4,
       }}
     >
+      <View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          top: spacing.s,
+          right: spacing.s,
+          width: 22,
+          height: 22,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Animated.View
+          style={{
+            position: 'absolute',
+            width: 22,
+            height: 22,
+            borderRadius: 11,
+            backgroundColor: palette.primary,
+            opacity: pulseOpacity,
+            transform: [{ scale: pulseScale }],
+          }}
+        />
+        <View
+          style={{
+            width: 12,
+            height: 12,
+            borderRadius: 6,
+            backgroundColor: palette.primary,
+            shadowColor: palette.primary,
+            shadowOpacity: isDark ? 0.85 : 0.55,
+            shadowRadius: isDark ? 12 : 8,
+            shadowOffset: { width: 0, height: 0 },
+          }}
+        />
+      </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <View style={{ flex: 1 }}>
           <ThemedText kind="label" style={{ color: palette.surface, fontWeight: '600' }}>

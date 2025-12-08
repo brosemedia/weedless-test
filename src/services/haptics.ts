@@ -183,39 +183,48 @@ class HapticsService {
     type: HapticFeedbackType,
     options: HapticOptions
   ): Promise<void> {
+    const intensity = options.intensity ?? 'light';
+    const impactStyle =
+      intensity === 'heavy'
+        ? Haptics.ImpactFeedbackStyle.Heavy
+        : intensity === 'medium'
+          ? Haptics.ImpactFeedbackStyle.Medium
+          : Haptics.ImpactFeedbackStyle.Light;
+    const durationForIntensity = intensity === 'heavy' ? 70 : intensity === 'medium' ? 45 : 25;
+
     if (Platform.OS === 'ios') {
       switch (type) {
         case 'success':
-          // Sanfte, beruhigende Doppel-Vibration
-          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          await this.delay(100);
-          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          // Sanfte, aber skalierte Doppel-Vibration
+          await Haptics.impactAsync(impactStyle);
+          await this.delay(90);
+          await Haptics.impactAsync(impactStyle);
           break;
         case 'threshold':
           // Leichte Vibration bei Schwellenwerten
-          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          await Haptics.impactAsync(impactStyle);
           break;
         case 'selection':
           // Sehr leichte Vibration
           await Haptics.selectionAsync();
           break;
         default:
-          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          await Haptics.impactAsync(impactStyle);
       }
     } else {
       // Android Fallback
       switch (type) {
         case 'success':
-          Vibration.vibrate([0, 30, 80, 30]);
+          Vibration.vibrate([0, durationForIntensity, 80, durationForIntensity]);
           break;
         case 'threshold':
-          Vibration.vibrate(30);
+          Vibration.vibrate(durationForIntensity);
           break;
         case 'selection':
           Vibration.vibrate(20);
           break;
         default:
-          Vibration.vibrate(30);
+          Vibration.vibrate(durationForIntensity);
       }
     }
   }

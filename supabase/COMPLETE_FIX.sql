@@ -127,7 +127,7 @@ DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
 CREATE POLICY "Users can view own profile"
   ON public.profiles
   FOR SELECT
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 -- INSERT Policy (WICHTIG für Registrierung!)
 -- Diese Policy erlaubt Benutzern, ihr eigenes Profil zu erstellen
@@ -135,7 +135,7 @@ CREATE POLICY "Users can view own profile"
 CREATE POLICY "Users can insert own profile"
   ON public.profiles
   FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK ((select auth.uid()) = user_id);
 
 -- ZUSÄTZLICH: Policy für Service Role (falls nötig)
 -- Diese Policy erlaubt dem Trigger (der als postgres läuft), Profile zu erstellen
@@ -162,8 +162,8 @@ END $$;
 CREATE POLICY "Users can update own profile"
   ON public.profiles
   FOR UPDATE
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id)
+  WITH CHECK ((select auth.uid()) = user_id);
 
 -- ============================================
 -- SCHRITT 5: Prüfung - Ist alles korrekt?

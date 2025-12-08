@@ -20,6 +20,7 @@ import ProgressDial from './ProgressDial';
 import type { Milestone } from '../types/milestone';
 import { formatXp } from '../lib/xp';
 import type { ThemeColors } from '../theme/themes';
+import { computeMilestoneCompletion } from '../lib/milestoneProgress';
 
 type MilestoneOverviewCardProps = {
   milestones: Milestone[];
@@ -221,8 +222,7 @@ export function MilestoneOverviewCard({
             {orderedMilestones.map((m, index) => {
               const achieved = !!m.achievedAt;
               const progressValue = milestoneProgress(m);
-              const target = m.threshold || 1;
-              const completion = Math.max(0, Math.min(1, target ? progressValue / target : 1));
+              const completion = computeMilestoneCompletion(progressValue, m);
               const cardKey = `${m.id}-${achieved ? 'done' : 'next'}`;
               const cardCenter = index * CARD_SPACING;
               const inputRange = [cardCenter - CARD_SPACING, cardCenter, cardCenter + CARD_SPACING];

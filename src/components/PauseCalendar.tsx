@@ -7,14 +7,14 @@
  * - Responsives Zoomen basierend auf Anzahl der Tage
  */
 import React from 'react';
-import { View, Text, StyleSheet, Pressable, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Dimensions, Animated, Easing } from 'react-native';
 import Svg, { Line } from 'react-native-svg';
 import { useTheme } from '../theme/useTheme';
 import { spacing, radius } from '../design/tokens';
 import { ThemedText } from '../design/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { Pause } from '../types/pause';
-import { parseDateKey, toDateKey } from '../lib/pause';
+import { pauseDurationInDays } from '../lib/pause';
 import { haptics } from '../services/haptics';
 
 type PauseCalendarProps = {
@@ -33,13 +33,51 @@ export default function PauseCalendar({ pause, onPress, onExpand, compact = fals
   const { theme } = useTheme();
   const palette = theme.colors;
   const [isExpanded, setIsExpanded] = React.useState(false);
+  const dotPulse = React.useRef(new Animated.Value(0)).current;
 
-  // Berechne Tage der Pause
-  const startDate = parseDateKey(pause.startDate);
-  const endDate = parseDateKey(pause.endDate);
-  const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  React.useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(dotPulse, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(dotPulse, {
+          toValue: 0,
+          duration: 900,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => {
+      loop.stop();
+    };
+  }, [dotPulse]);
+
+  // Berechne Tage der Pause konsistent zur restlichen App
+  const totalDays = pauseDurationInDays(pause);
   const daysToShow = isExpanded ? totalDays : Math.min(totalDays, DAYS_PER_VIEW);
   const needsExpansion = totalDays > DAYS_PER_VIEW;
+
+  // Bereits vollständig abgeschlossene Tage (XP vergeben)
+  const completedDays = React.useMemo(() => {
+    if (pause.status !== 'aktiv') {
+      return totalDays;
+    }
+    const uniqueAwarded = new Set(
+      Array.isArray(pause.xpAwardedDays) ? pause.xpAwardedDays.map((d) => d.slice(0, 10)) : []
+    );
+    return Math.min(totalDays, uniqueAwarded.size);
+  }, [pause.status, pause.xpAwardedDays, totalDays]);
+
+  const currentDay = React.useMemo(() => {
+    if (completedDays >= totalDays) return totalDays;
+    return completedDays + 1;
+  }, [completedDays, totalDays]);
 
   // Responsive Berechnung: Weniger Tage = größere Nodes
   const responsiveConfig = React.useMemo(() => {
@@ -78,11 +116,6 @@ export default function PauseCalendar({ pause, onPress, onExpand, compact = fals
   }, [daysToShow]);
 
   const { nodesPerRow, nodeSize, spacing: nodeSpacing, verticalSpacing } = responsiveConfig;
-
-  // Berechne aktuellen Fortschritt
-  const now = new Date();
-  const daysSinceStart = Math.max(0, Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-  const completedDays = Math.min(daysSinceStart, totalDays);
 
   // Generiere Layout für die Tage (Snake-Pattern)
   const layout = React.useMemo(() => {
@@ -222,8 +255,8 @@ export default function PauseCalendar({ pause, onPress, onExpand, compact = fals
         {/* Tage-Nodes */}
         {layout.map((node) => {
           const isCompleted = node.day <= completedDays;
-          const isCurrent = node.day === completedDays + 1;
-          const isFuture = node.day > completedDays + 1;
+          const isCurrent = completedDays < totalDays && node.day === currentDay;
+          const isFuture = node.day > currentDay;
 
           return (
             <View
@@ -233,6 +266,8 @@ export default function PauseCalendar({ pause, onPress, onExpand, compact = fals
                 {
                   left: node.x - nodeSize / 2,
                   top: node.y - nodeSize / 2,
+                  width: nodeSize,
+                  height: nodeSize + verticalSpacing,
                 },
               ]}
             >
@@ -246,13 +281,13 @@ export default function PauseCalendar({ pause, onPress, onExpand, compact = fals
                     backgroundColor: isCompleted
                       ? palette.primary
                       : isCurrent
-                      ? palette.primaryRing
+                      ? palette.surfaceMuted
                       : palette.surfaceMuted,
                     borderColor: isCurrent ? palette.primary : palette.border,
                     borderWidth: isCurrent ? 3 : 1,
                     shadowColor: isCompleted || isCurrent ? palette.primary : 'transparent',
-                    shadowOpacity: isCompleted || isCurrent ? 0.4 : 0,
-                    shadowRadius: isCurrent ? 12 : 8,
+                    shadowOpacity: isCurrent ? 0.55 : isCompleted ? 0.4 : 0,
+                    shadowRadius: isCurrent ? 14 : 8,
                     shadowOffset: { width: 0, height: 4 },
                   },
                 ]}
@@ -262,8 +297,8 @@ export default function PauseCalendar({ pause, onPress, onExpand, compact = fals
                     styles.nodeText,
                     {
                       fontSize: nodeSize * 0.35,
-                      color: isCompleted || isCurrent ? palette.surface : palette.textMuted,
-                      fontWeight: isCurrent ? '700' : isCompleted ? '600' : '400',
+                      color: isCurrent ? palette.primary : isCompleted ? palette.surface : palette.textMuted,
+                      fontWeight: isCurrent ? '800' : isCompleted ? '600' : '400',
                     },
                   ]}
                 >
@@ -273,17 +308,51 @@ export default function PauseCalendar({ pause, onPress, onExpand, compact = fals
               {/* Aktueller Tag-Indikator UNTER dem Kreis */}
               {isCurrent && (
                 <View
-                  style={[
-                    styles.currentIndicator,
-                    {
+                  pointerEvents="none"
+                  style={{
+                    position: 'absolute',
+                    top: nodeSize + (verticalSpacing - 12) / 2, // mittig im verfügbaren Zwischenraum
+                    left: 0,
+                    width: nodeSize,
+                    height: verticalSpacing,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Animated.View
+                    style={{
+                      position: 'absolute',
+                      width: 22,
+                      height: 22,
+                      borderRadius: 11,
                       backgroundColor: palette.primary,
-                      shadowColor: palette.primary,
-                      shadowOpacity: 0.8,
-                      shadowRadius: 6,
-                      top: nodeSize + 4,
-                    },
-                  ]}
-                />
+                      opacity: dotPulse.interpolate({ inputRange: [0, 1], outputRange: [0.35, 0] }),
+                      transform: [
+                        {
+                          scale: dotPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.7] }),
+                        },
+                      ],
+                    }}
+                  />
+                  <Animated.View
+                    style={[
+                      styles.currentIndicator,
+                      {
+                        backgroundColor: palette.primary,
+                        shadowColor: palette.primary,
+                        shadowOpacity: 0.9,
+                        shadowRadius: 10,
+                        opacity: dotPulse.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }),
+                        transform: [
+                          {
+                            scale: dotPulse.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.35] }),
+                          },
+                        ],
+                        left: (nodeSize - 12) / 2,
+                      },
+                    ]}
+                  />
+                </View>
               )}
             </View>
           );
@@ -340,9 +409,10 @@ const styles = StyleSheet.create({
   },
   currentIndicator: {
     position: 'absolute',
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    zIndex: 2,
   },
   footer: {
     flexDirection: 'row',

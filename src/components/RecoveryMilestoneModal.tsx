@@ -249,7 +249,6 @@ const styles = StyleSheet.create({
   paragraph: {
     fontSize: 16,
     lineHeight: 24,
-    color: undefined, // wird von ThemedText gesetzt
   },
   sourcesSection: {
     marginTop: spacing.l as any,

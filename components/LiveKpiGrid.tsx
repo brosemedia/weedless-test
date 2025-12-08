@@ -5,7 +5,8 @@
  * - Responsive Schriftgröße für große Zahlen
  */
 import React from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, AppState, type AppStateStatus } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Path, Rect, Circle } from 'react-native-svg';
@@ -116,7 +117,7 @@ type KpiCardProps = {
   isDarkMode?: boolean;
 };
 
-const KpiCard = React.memo(function KpiCard({ icon, label, value, subline, progress, testID, styles, gradientColors, borderColor, fullWidth, showProgress = true, progressColor, visualElement, cardSizeStyle, cardShadowColor, onPress, disableShadow, isDarkMode = false }: KpiCardProps) {
+function KpiCard({ icon, label, value, subline, progress, testID, styles, gradientColors, borderColor, fullWidth, showProgress = true, progressColor, visualElement, cardSizeStyle, cardShadowColor, onPress, disableShadow, isDarkMode = false }: KpiCardProps) {
   const responsiveFontSize = getResponsiveFontSize(value);
   const valueLineHeight = Math.round(responsiveFontSize * 1.15);
 
@@ -188,7 +189,7 @@ const KpiCard = React.memo(function KpiCard({ icon, label, value, subline, progr
       {content}
     </View>
   );
-});
+}
 
 const MAX_KPI_SELECTION = KPI_CONFIGS.length;
 
@@ -197,34 +198,79 @@ type LiveKpiGridProps = {
 };
 
 export default function LiveKpiGrid({ onViewMoreStats }: LiveKpiGridProps) {
-  const stats = useStats();
   const { theme, mode } = useTheme();
   const palette = theme.colors;
   const styles = useThemedStyles(createStyles);
-  
-  // KPI-Auswahl aus Store
   const selectedKpis = useUiStore((s) => s.selectedKpis);
   const setSelectedKpis = useUiStore((s) => s.setSelectedKpis);
-  
-  // Flip state - simpler approach: just show/hide with animation
+
+  const [appState, setAppState] = React.useState<AppStateStatus>(AppState.currentState);
+  const isFocused = useIsFocused();
+  const isActive = appState === 'active';
   const [isFlipped, setIsFlipped] = React.useState(false);
   const [tempSelected, setTempSelected] = React.useState<KpiType[]>(selectedKpis);
   const flipProgress = useSharedValue(0);
-  // Reduziere Ticker-Update-Rate wenn viele KPIs angezeigt werden (Performance)
-  // useMonotonicTicker erwartet FPS, nicht Millisekunden
-  const tickerFps = selectedKpis.length === MAX_KPI_SELECTION 
-    ? 2  // Alle KPIs: sehr langsam (2 FPS = alle 500ms)
-    : selectedKpis.length > 4 
-    ? 4  // Viele KPIs: langsam (4 FPS = alle 250ms)
-    : 8; // Wenige KPIs: normal (8 FPS = alle 125ms)
-  const _ticker = useMonotonicTicker(tickerFps, !isFlipped); // force live updates on Frontside, pausiert im Edit
+  const [focusNow, setFocusNow] = React.useState<number | null>(null);
+  const lastSyncRef = React.useRef<number>(0);
 
+  React.useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState) => {
+      setAppState(nextState);
+      if (nextState === 'active') {
+        setFocusNow(Date.now());
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
+  const liveTickerFps = React.useMemo(() => {
+    if (!isFocused || !isActive || isFlipped) return 0;
+    // Mindestens 1 FPS für sichtbare Bewegung, unabhängig von Menge.
+    return 1;
+  }, [isActive, isFocused, isFlipped]);
+
+  const nowTick = useMonotonicTicker(liveTickerFps, liveTickerFps > 0);
+  // Wenn der Ticker läuft, nutzen wir ihn; sonst den letzten Fokus-Zeitpunkt.
+  const nowForStats = liveTickerFps > 0 ? nowTick : focusNow ?? Date.now();
+  const stats = useStats(nowForStats);
+
+  // Sofortige Neu-Berechnung bei Fokus/Active
+  React.useEffect(() => {
+    if (isFocused && isActive) {
+      setFocusNow(Date.now());
+    }
+  }, [isFocused, isActive]);
+  
   // Zusätzliche Daten für erweiterte KPIs
   const dayLogs = useApp((s) => s.dayLogs);
   const pauses = useApp((s) => s.pauses);
   const profile = useApp((s) => s.profile);
   const [moodModalVisible, setMoodModalVisible] = React.useState(false);
   const [sleepModalVisible, setSleepModalVisible] = React.useState(false);
+
+  // Cloud-Sync bei Fokus/Active, gedrosselt
+  React.useEffect(() => {
+    const SYNC_INTERVAL_MS = 2 * 60 * 1000;
+    if (!isFocused || !isActive) return;
+    const now = Date.now();
+    if (now - lastSyncRef.current < SYNC_INTERVAL_MS) return;
+    lastSyncRef.current = now;
+    console.log('[Sync] focus sync start', { at: new Date(now).toISOString() });
+    import('../src/lib/sync').then(({ syncAllData }) => {
+      syncAllData(profile, dayLogs, pauses)
+        .then(() => {
+          console.log('[Sync] focus sync done', {
+            at: new Date().toISOString(),
+            dayLogsCount: Object.keys(dayLogs ?? {}).length,
+            pausesCount: (pauses ?? []).length,
+            profile: profile ? true : false,
+          });
+        })
+        .catch((err) => {
+          console.error('[Sync] focus sync failed', err);
+        });
+    });
+  }, [isActive, isFocused, profile, dayLogs, pauses]);
 
   // Reset temp selection when flipping to back
   React.useEffect(() => {
