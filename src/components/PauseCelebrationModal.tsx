@@ -10,6 +10,7 @@ import { useApp } from '../store/app';
 import { calculatePauseStats, parseDateKey, pauseDurationInDays } from '../lib/pause';
 import { useStore } from '../store/useStore';
 import { useTheme } from '../theme/useTheme';
+import type { Pause } from '../types/pause';
 
 const formatDateLabel = (key: string) => format(parseDateKey(key), 'dd.MM.yyyy', { locale: de });
 
@@ -167,6 +168,6 @@ export default function PauseCelebrationModal({ navRef }: Props) {
   );
 }
 
-const pauseDurationLabel = (pause: { startDate: string; endDate: string }) => {
+const pauseDurationLabel = (pause: Pause) => {
   return `${pauseDurationInDays(pause)} Tage`;
 };

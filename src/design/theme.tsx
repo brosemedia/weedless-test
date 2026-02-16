@@ -190,9 +190,10 @@ type ButtonProps = {
   tone?: 'primary' | 'outline' | 'danger';
   disabled?: boolean;
   fullWidth?: boolean;
+  style?: ViewProps['style'];
 };
 
-export function Button({ title, onPress, tone = 'primary', disabled, fullWidth }: ButtonProps) {
+export function Button({ title, onPress, tone = 'primary', disabled, fullWidth, style }: ButtonProps) {
   const theme = useTheme();
   const base = {
     minHeight: 44,
@@ -218,10 +219,10 @@ export function Button({ title, onPress, tone = 'primary', disabled, fullWidth }
   const labelColor = tone === 'outline' ? theme.colors.text : theme.colors.surface;
   const { haptics } = require('../services/haptics');
   
-  const handlePress = () => {
+  const handlePress = (event: GestureResponderEvent) => {
     if (!disabled) {
       haptics.trigger('general', 'selection');
-      onPress();
+      onPress?.(event);
     }
   };
   
@@ -230,12 +231,15 @@ export function Button({ title, onPress, tone = 'primary', disabled, fullWidth }
       accessibilityRole="button"
       disabled={disabled}
       onPress={handlePress}
-      style={{
-        ...(base as any),
-        ...(stylesByTone[tone] as any),
-        opacity: disabled ? 0.5 : 1,
-        width: fullWidth ? '100%' : undefined,
-      }}
+      style={[
+        {
+          ...(base as any),
+          ...(stylesByTone[tone] as any),
+          opacity: disabled ? 0.5 : 1,
+          width: fullWidth ? '100%' : undefined,
+        },
+        style,
+      ]}
     >
       <Text style={{ color: labelColor, ...(theme.typography.variants.button as any) }}>{title}</Text>
     </Pressable>

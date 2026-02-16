@@ -10,6 +10,7 @@ export const useOnboardingStep = (stepId: OnboardingStepId) => {
   const navigation = useNavigation<NativeStackNavigationProp<OnboardingStackParamList>>();
   const route = useRoute();
   const goal = useOnboardingStore((state) => state.profile.goal);
+  const mode = useOnboardingStore((state) => state.mode);
   const consumptionMethods = useOnboardingStore((state) => state.profile.consumptionMethods);
   const hydrated = useOnboardingStore((state) => state.hydrated);
   const setCurrentStepIndex = useOnboardingStore((state) => state.setCurrentStepIndex);
@@ -28,7 +29,7 @@ export const useOnboardingStep = (stepId: OnboardingStepId) => {
       if (!targetId) return;
       setCurrentStepIndex(targetIndex);
       if (route.name !== targetId) {
-        navigation.navigate(targetId);
+        navigation.navigate(targetId as never);
       }
     },
     [navigation, route.name, setCurrentStepIndex, steps]
@@ -51,5 +52,6 @@ export const useOnboardingStep = (stepId: OnboardingStepId) => {
     totalSteps: steps.length,
     isFirstStep: currentIndex <= 0,
     isLastStep: currentIndex >= steps.length - 1,
+    mode,
   };
 };

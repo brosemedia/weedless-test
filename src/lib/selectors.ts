@@ -134,7 +134,6 @@ export const useStats = (nowOverride?: number) => {
     const expectedGrams = hours * gramsPerHourValue;
     const expectedGramsMoney = hoursMoney * gramsPerHourValue;
     const savedGrams = Math.max(0, expectedGramsMoney - moneyTotals.grams);
-    const savedGramsMoney = Math.max(0, expectedGramsMoney - moneyTotals.grams);
 
     const jointsPerDayBaseline =
       profile.jointsPerDayBaseline ??
@@ -149,7 +148,7 @@ export const useStats = (nowOverride?: number) => {
       profile.pricePerGram ??
       (profile.costPerJoint ? profile.costPerJoint / GRAMS_PER_JOINT_DEFAULT : 0);
 
-    const savedMoney = Math.max(0, savedGramsMoney * pricePerGram - moneyTotals.moneySpent);
+    const savedMoney = Math.max(0, savedGrams * pricePerGram - moneyTotals.moneySpent);
 
     const expectedSessionMinutes =
       jointsPerDayBaseline > 0 && (profile.avgSessionMinutes ?? 0) > 0

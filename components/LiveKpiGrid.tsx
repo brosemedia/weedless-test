@@ -32,8 +32,7 @@ import { SleepSliderModal } from './SleepSliderModal';
 import {
   KPI_CONFIGS,
   buildKpiData,
-  getKpiCardColor,
-  getKpiIconColor,
+  getKpiPaletteByIndex,
   getResponsiveFontSize,
   safeProgress,
   type KpiConfig,
@@ -106,6 +105,8 @@ type KpiCardProps = {
   styles: ReturnType<typeof createStyles>;
   gradientColors: [string, string, string];
   borderColor: string;
+  textColor: string;
+  trackColor: string;
   fullWidth?: boolean;
   showProgress?: boolean;
   progressColor?: string;
@@ -117,9 +118,31 @@ type KpiCardProps = {
   isDarkMode?: boolean;
 };
 
-function KpiCard({ icon, label, value, subline, progress, testID, styles, gradientColors, borderColor, fullWidth, showProgress = true, progressColor, visualElement, cardSizeStyle, cardShadowColor, onPress, disableShadow, isDarkMode = false }: KpiCardProps) {
+function KpiCard({
+  icon,
+  label,
+  value,
+  subline,
+  progress,
+  testID,
+  styles,
+  gradientColors,
+  borderColor,
+  textColor,
+  trackColor,
+  fullWidth,
+  showProgress = true,
+  progressColor,
+  visualElement,
+  cardSizeStyle,
+  cardShadowColor,
+  onPress,
+  disableShadow,
+  isDarkMode = false,
+}: KpiCardProps) {
   const responsiveFontSize = getResponsiveFontSize(value);
   const valueLineHeight = Math.round(responsiveFontSize * 1.15);
+  const normalizedProgress = safeProgress(progress);
 
   const content = (
     <View style={[styles.cardInner, { borderColor }]}>
@@ -131,16 +154,31 @@ function KpiCard({ icon, label, value, subline, progress, testID, styles, gradie
       />
       <View style={styles.cardIcon}>{icon}</View>
       <Text 
-        style={[styles.cardValue, { fontSize: responsiveFontSize, lineHeight: valueLineHeight }]} 
+        style={[
+          styles.cardValue,
+          { fontSize: responsiveFontSize, lineHeight: valueLineHeight, color: textColor },
+        ]} 
         numberOfLines={1} 
         adjustsFontSizeToFit
       >
         {value}
       </Text>
-      <Text style={styles.cardSub}>{subline}</Text>
+      <Text
+        style={[
+          styles.cardSub,
+          { color: textColor, opacity: textColor === '#FFFFFF' ? 0.9 : 0.78 },
+        ]}
+      >
+        {subline}
+      </Text>
       {showProgress && (
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${safeProgress(progress) * 100}%`, backgroundColor: progressColor }]} />
+        <View style={[styles.progressTrack, { backgroundColor: trackColor }]}>
+          <View
+            style={[
+              styles.progressFill,
+              { width: `${normalizedProgress * 100}%`, backgroundColor: progressColor },
+            ]}
+          />
         </View>
       )}
       {visualElement && (
@@ -148,10 +186,25 @@ function KpiCard({ icon, label, value, subline, progress, testID, styles, gradie
           {visualElement}
         </View>
       )}
-      <Text style={styles.cardLabel}>{label}</Text>
+      <Text
+        style={[
+          styles.cardLabel,
+          { color: textColor, opacity: textColor === '#FFFFFF' ? 0.9 : 0.82 },
+        ]}
+      >
+        {label}
+      </Text>
     </View>
   );
-  
+
+  const cardBaseStyle = [
+    styles.card,
+    fullWidth && styles.cardFullWidth,
+    cardSizeStyle,
+    cardShadowColor ? { shadowColor: cardShadowColor } : null,
+    disableShadow ? styles.cardNoShadow : null,
+  ];
+
   if (onPress) {
     return (
       <Pressable
@@ -160,11 +213,7 @@ function KpiCard({ icon, label, value, subline, progress, testID, styles, gradie
         accessibilityRole="button"
         accessibilityLabel={`${label}: ${value}`}
         style={({ pressed }) => [
-          styles.card, 
-          fullWidth && styles.cardFullWidth, 
-          cardSizeStyle, 
-          cardShadowColor ? { shadowColor: cardShadowColor } : null,
-          disableShadow ? styles.cardNoShadow : null,
+          ...cardBaseStyle,
           pressed ? { opacity: 0.94, transform: [{ translateY: 1 }] } : null,
         ]}
       >
@@ -175,13 +224,7 @@ function KpiCard({ icon, label, value, subline, progress, testID, styles, gradie
 
   return (
     <View 
-      style={[
-        styles.card, 
-        fullWidth && styles.cardFullWidth, 
-        cardSizeStyle, 
-        cardShadowColor ? { shadowColor: cardShadowColor } : null,
-        disableShadow ? styles.cardNoShadow : null,
-      ]} 
+      style={[...cardBaseStyle]} 
       accessibilityRole="text" 
       accessibilityLabel={`${label}: ${value}`} 
       testID={testID}
@@ -419,9 +462,11 @@ export default function LiveKpiGrid({ onViewMoreStats }: LiveKpiGridProps) {
               rowIndex !== rows.length - 1 ? styles.rowSpacing : null,
             ]}
           >
-            {row.map((config) => {
-              const iconColor = getKpiIconColor(config.type);
-              const cardColors = getKpiCardColor(config.type, { dark: mode === 'dark' });
+            {row.map((config, colIndex) => {
+              const paletteIndex = rowIndex * 2 + colIndex;
+              const cardColors = getKpiPaletteByIndex(paletteIndex, { dark: mode === 'dark' });
+              const iconColor = '#FFFFFF';
+              const textColor = '#FFFFFF';
               const showProgress = config.type !== 'spent' && config.type !== 'consumed';
               let visualElement: React.ReactNode = null;
               if (config.type === 'spent') {
@@ -435,7 +480,7 @@ export default function LiveKpiGrid({ onViewMoreStats }: LiveKpiGridProps) {
               return (
                 <KpiCard
                   key={config.type}
-                  icon={<MaterialCommunityIcons name={config.icon as any} size={32} color="#FFFFFF" />}
+                  icon={<MaterialCommunityIcons name={config.icon as any} size={32} color={iconColor} />}
                   label={config.label}
                   value={config.getValue(kpiData)}
                   subline={config.getSubline(kpiData)}
@@ -444,9 +489,11 @@ export default function LiveKpiGrid({ onViewMoreStats }: LiveKpiGridProps) {
                   styles={styles}
                   gradientColors={cardColors.gradient}
                   borderColor={cardColors.border}
+                  textColor={textColor}
+                  trackColor={cardColors.track}
                   fullWidth={isSingle}
                   showProgress={showProgress}
-                  progressColor="#FFFFFF"
+                  progressColor={textColor}
                   visualElement={visualElement}
                   cardSizeStyle={isSingle ? wideCardStyle : baseCardStyle}
                   cardShadowColor={shadowColor}
@@ -555,8 +602,6 @@ export default function LiveKpiGrid({ onViewMoreStats }: LiveKpiGridProps) {
                   hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
                   android_ripple={{ color: `${palette.primary}33`, borderless: false }}
                   pressRetentionOffset={{ top: 14, right: 14, bottom: 14, left: 14 }}
-                  delayPressIn={0}
-                  delayPressOut={0}
                   style={({ pressed }) => [
                     styles.listItemGrid,
                     { 
@@ -758,32 +803,26 @@ const createStyles = (palette: ThemeColors) =>
     cardValue: {
       fontSize: 30,
       fontWeight: '800',
-      color: '#FFFFFF',
       lineHeight: 34,
     },
     cardSub: {
       marginTop: 4,
       fontSize: 11,
-      color: '#FFFFFF',
-      opacity: 0.9,
     },
     cardLabel: {
       marginTop: 10,
       fontSize: 12,
       fontWeight: '600',
-      color: '#FFFFFF',
     },
     progressTrack: {
       marginTop: 12,
       height: 5,
       width: '100%',
       borderRadius: 5,
-      backgroundColor: palette.border,
       overflow: 'hidden',
     },
     progressFill: {
       height: '100%',
-      backgroundColor: palette.primary,
     },
     visualElementContainer: {
       marginTop: 10,

@@ -11,7 +11,7 @@ import type { RecoveryMilestone } from '../types/recoveryMilestone';
 import { spacing } from '../design/tokens';
 
 const CARD_ANIM_DELAY = 90;
-const CONNECTOR_HEIGHT = 8;
+const CONNECTOR_HEIGHT = 12;
 const CARD_GAP = 28;
 const BASE_PADDING = 28;
 const CARD_HEIGHT = 300;
@@ -177,36 +177,42 @@ export default function RecoveryTimeline({ sinceStartDays = 0, onCardPress }: Pr
     [milestoneCenters, outerPadding],
   );
 
-  const progressRatio = useMemo(() => {
-    if (milestones.length <= 1 || contentWidth === 0) return 0;
+  const progressPosition = useMemo(() => {
+    if (milestones.length === 0 || contentWidth === 0) return 0;
+
     const clampedValue = clamp(sinceStartDays, 0, milestones[milestones.length - 1].day);
-    
-    // Finde den Bereich, in dem sich der aktuelle Tag befindet
+    const firstDay = milestones[0]?.day ?? 0;
+    const firstCenter = milestoneCenters[0] ?? 0;
+
+    // Vor dem ersten Meilenstein: lineare Progression ab Tag 0
+    if (clampedValue <= firstDay) {
+      const span = Math.max(1, firstDay);
+      const frac = clampedValue / span;
+      return frac * firstCenter;
+    }
+
+    // Zwischen Meilensteinen interpolieren
     for (let i = 0; i < milestones.length - 1; i++) {
       const startDay = milestones[i].day;
       const endDay = milestones[i + 1].day;
-      
+
       if (clampedValue <= endDay) {
         const span = Math.max(1, endDay - startDay);
         const progress = clampedValue - startDay;
         const frac = Math.min(1, Math.max(0, progress / span));
-        
-        // Verwende die tatsächlichen visuellen Positionen der Meilensteine
+
         const startCenter = milestoneCenters[i];
         const endCenter = milestoneCenters[i + 1];
-        const currentCenter = startCenter + frac * (endCenter - startCenter);
-        
-        // Konvertiere die Pixel-Position in ein Verhältnis
-        return currentCenter / contentWidth;
+        return startCenter + frac * (endCenter - startCenter);
       }
     }
-    
-    // Wenn wir über dem letzten Meilenstein sind, zeige 100%
-    return 1;
+
+    // Nach letztem Meilenstein: komplettes Track-Ende füllen
+    return contentWidth;
   }, [sinceStartDays, contentWidth, milestoneCenters, milestones]);
 
-  const progressWidthRaw = EDGE_PEEK + outerPadding + progressRatio * contentWidth;
-  const progressWidth = clamp(progressWidthRaw, EDGE_PEEK + outerPadding, axisWidth);
+  const contentStart = EDGE_PEEK + outerPadding;
+  const progressWidth = clamp(progressPosition, 0, contentWidth);
 
   const handleCardPress = useCallback((milestone: RecoveryMilestone) => {
     setSelectedMilestone(milestone);
@@ -368,8 +374,25 @@ export default function RecoveryTimeline({ sinceStartDays = 0, onCardPress }: Pr
               },
             ]}
           >
-            <View style={styles.axisTrack} />
-            <View style={[styles.axisProgress, { width: progressWidth }]} />
+            <View
+              style={[
+                styles.axisTrack,
+                {
+                  width: contentWidth,
+                  left: contentStart,
+                  right: undefined,
+                },
+              ]}
+            />
+            <View
+              style={[
+                styles.axisProgress,
+                {
+                  width: progressWidth,
+                  left: contentStart,
+                },
+              ]}
+            />
             {paddedCenters.map((left, idx) => (
               <View key={milestones[idx].id} style={[styles.axisTick, { left: left - 32 }]}>
                 <View style={styles.axisTickMark} />
@@ -483,9 +506,10 @@ const createStyles = (colors: ThemeColors) =>
       marginTop: 0,
     },
     connector: {
-      width: 2,
+      width: 3,
       height: CONNECTOR_HEIGHT,
       backgroundColor: colors.border,
+      borderRadius: 6,
     },
     axisContainer: {
       marginTop: 4,
@@ -498,16 +522,23 @@ const createStyles = (colors: ThemeColors) =>
       left: 0,
       right: 0,
       top: 0,
-      height: 4,
+      height: 8,
+      borderRadius: 10,
       backgroundColor: colors.border,
+      opacity: 0.6,
     },
     axisProgress: {
       position: 'absolute',
       left: 0,
       top: 0,
-      height: 4,
-      borderRadius: 4,
+      height: 10,
+      borderRadius: 10,
       backgroundColor: colors.primary,
+      shadowColor: colors.primary,
+      shadowOpacity: 0.35,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 3 },
+      elevation: 3,
     },
     axisTick: {
       position: 'absolute',

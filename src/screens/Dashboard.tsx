@@ -206,15 +206,24 @@ function SmokeFreeBadge({ duration, since, startTimestamp, onUpdateStartTime }: 
     (newTimestamp: number) => {
       Alert.alert(
         'Letzten Konsum anpassen',
-        'Wenn du die Zeit zurücksetzt, starten Level, XP, Meilensteine und Erholung neu. Alternativ kannst du nur die Geld-/Gramm-Berechnung anpassen.',
+        [
+          'Wenn du die Zeit änderst, starten wir alles ab diesem Zeitpunkt neu.',
+          'Zurückgesetzt werden:',
+          '• Level & XP',
+          '• Meilensteine & Erholungstimeline',
+          '• Tages-Logs/Check-ins',
+          '• Geld-/Gramm-Berechnung',
+          '',
+          'Willst du nur die Geld-/Gramm-Berechnung verschieben, ohne Level & Historie neu zu starten?'
+        ].join('\n'),
         [
           { text: 'Abbrechen', style: 'cancel' },
           {
-            text: 'Zeit nicht ändern',
+            text: 'Nur Geld/Gramm neu berechnen',
             onPress: () => applyMoneyOnly(newTimestamp),
           },
           {
-            text: 'Letzten Konsum ändern',
+            text: 'Letzten Konsum neu setzen',
             style: 'destructive',
             onPress: () => applyFullReset(newTimestamp),
           },
@@ -654,12 +663,12 @@ export default function Dashboard({ navigation }: any) {
     const recoveryStartTs = lastConsumptionTimestamp ?? appProfile?.startTimestamp ?? null;
     if (!recoveryStartTs) return 0;
     const now = Date.now();
-    return Math.max(0, Math.floor((now - recoveryStartTs) / (24 * 60 * 60 * 1000)));
+    return Math.max(0, (now - recoveryStartTs) / (24 * 60 * 60 * 1000)); // Bruchteile für präzisen Fortschritt
   }, [lastConsumptionTimestamp, appProfile?.startTimestamp]);
 
   const duration = React.useMemo(() => {
     return formatDurationSince(pauseStartIso);
-  }, [pauseStartIso]);
+  }, [pauseStartIso, now]);
 
   const sinceLabel = React.useMemo(() => {
     const sinceDate = pauseStartIso ? new Date(pauseStartIso) : null;

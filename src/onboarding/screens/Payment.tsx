@@ -21,8 +21,18 @@ const mockPurchaseSubscription = async (productId: string): Promise<boolean> => 
   return true; // Mock: immer erfolgreich
 };
 
+type MockProduct = {
+  id: string;
+  title: string;
+  price: string;
+  period: string;
+  popular: boolean;
+  savings?: string;
+  originalPrice?: string;
+};
+
 // Mock-Produkte - später aus RevenueCat laden
-const MOCK_PRODUCTS = [
+const MOCK_PRODUCTS: MockProduct[] = [
   {
     id: 'premium_monthly',
     title: 'Premium Monatlich',

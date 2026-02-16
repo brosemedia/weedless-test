@@ -81,7 +81,7 @@ export function MilestoneOverviewCard({
   const [scrollContentWidth, setScrollContentWidth] = useState(0);
   const [viewportWidth, setViewportWidth] = useState(0);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const scrollViewRef = useRef<Animated.ScrollView | null>(null);
+  const scrollViewRef = useRef<ScrollView | null>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
   const scrollLockRef = useRef(false);
   const horizontalInset = useMemo(() => {

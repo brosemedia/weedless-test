@@ -97,7 +97,15 @@ export const useStore = create<Store>()(
           profile: mergeProfile(s.profile, { savingGoal: g }),
         })),
 
-      clearAll: () => set({ profile: createInitialProfile(), diary: [] }),
+      clearAll: () =>
+        set({
+          profile: createInitialProfile(),
+          diary: [],
+          checkins: [],
+          missions: [],
+          milestones: [],
+          taskCompletions: {},
+        }),
 
       addCheckin: (c) =>
         set((s) => ({
@@ -131,7 +139,7 @@ export const useStore = create<Store>()(
           if (m.achievedAt) return {} as any;
           const updated = [...s.milestones];
           updated[idx] = { ...m, achievedAt: new Date().toISOString() };
-          const reward = (m as any).xpReward ?? m.points ?? 0;
+          const reward = m.xpReward ?? 0;
           if (reward > 0) {
             const addXp = useApp.getState().addXp;
             addXp(toDateKey(new Date()), reward, 'milestone', {

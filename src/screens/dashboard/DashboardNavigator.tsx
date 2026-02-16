@@ -28,8 +28,7 @@ export default function DashboardNavigator() {
         headerBlurEffect: mode === 'dark' ? 'systemMaterialDark' : 'systemMaterial',
         headerLargeTitleShadowVisible: false,
         headerShadowVisible: false,
-        // Native iOS Zurück-Button mit "Zurück" Text
-        headerBackTitleVisible: true,
+        // Native iOS Zurueck-Button mit "Zurueck" Text
         headerBackTitle: 'Zurück',
         headerTintColor: palette.primary,
         headerTitleStyle: {

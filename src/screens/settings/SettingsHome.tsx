@@ -155,50 +155,69 @@ export default function SettingsHome({ navigation }: Props) {
   ];
 
   const handleLogout = () => {
-    Alert.alert(
-      strings.settings.logoutConfirmTitle,
-      strings.settings.logoutConfirmMessage,
-      [
-        {
-          text: strings.settings.cancel,
-          style: 'cancel',
+    const syncOff = accountInfo?.hasSync === false;
+    const title = syncOff ? strings.settings.logoutNoSyncTitle : strings.settings.logoutConfirmTitle;
+    const message = syncOff ? strings.settings.logoutNoSyncMessage : strings.settings.logoutConfirmMessage;
+    const confirmLabel = syncOff ? strings.settings.logoutNoSyncProceed : strings.settings.logoutConfirm;
+
+    const buttons: Array<{ text: string; style?: 'cancel' | 'destructive'; onPress?: () => void }> = [
+      {
+        text: strings.settings.cancel,
+        style: 'cancel',
+      },
+    ];
+
+    if (syncOff) {
+      buttons.push({
+        text: strings.settings.logoutNoSyncEnable,
+        onPress: () => {
+          const rootNavigation = navigation.getParent() as NavigationProp<RootStackParamList> | null;
+          if (rootNavigation) {
+            rootNavigation.goBack();
+            requestAnimationFrame(() => {
+              rootNavigation.navigate('CloudConsent');
+            });
+          }
         },
-        {
-          text: strings.settings.logoutConfirm,
-          style: 'destructive',
-          onPress: async () => {
-            setLoggingOut(true);
+      });
+    }
+
+    buttons.push({
+      text: confirmLabel,
+      style: 'destructive',
+      onPress: async () => {
+        setLoggingOut(true);
+        try {
+          // Navigate to login screen FIRST, before signOut to avoid React hooks errors
+          // This ensures components unmount before stores are reset
+          const rootNavigation = navigation.getParent() as NavigationProp<RootStackParamList> | null;
+          if (rootNavigation) {
+            rootNavigation.reset({
+              index: 0,
+              routes: [{ name: 'Login' }],
+            });
+          }
+          
+          // Wait for navigation and interactions to complete, then sign out
+          // signOut() will reset all stores automatically (see AuthContext)
+          // Using InteractionManager ensures components have unmounted before stores are reset
+          InteractionManager.runAfterInteractions(async () => {
             try {
-              // Navigate to login screen FIRST, before signOut to avoid React hooks errors
-              // This ensures components unmount before stores are reset
-              const rootNavigation = navigation.getParent() as NavigationProp<RootStackParamList> | null;
-              if (rootNavigation) {
-                rootNavigation.reset({
-                  index: 0,
-                  routes: [{ name: 'Login' }],
-                });
-              }
-              
-              // Wait for navigation and interactions to complete, then sign out
-              // signOut() will reset all stores automatically (see AuthContext)
-              // Using InteractionManager ensures components have unmounted before stores are reset
-              InteractionManager.runAfterInteractions(async () => {
-                try {
-                  await signOut();
-                } catch (signOutError) {
-                  console.error('Error signing out:', signOutError);
-                  // Don't show alert here as we're already navigating away
-                }
-              });
-            } catch (error) {
-              console.error('Error during logout:', error);
-              Alert.alert(strings.settings.logoutError, strings.settings.logoutErrorMessage);
-              setLoggingOut(false);
+              await signOut();
+            } catch (signOutError) {
+              console.error('Error signing out:', signOutError);
+              // Don't show alert here as we're already navigating away
             }
-          },
-        },
-      ]
-    );
+          });
+        } catch (error) {
+          console.error('Error during logout:', error);
+          Alert.alert(strings.settings.logoutError, strings.settings.logoutErrorMessage);
+          setLoggingOut(false);
+        }
+      },
+    });
+
+    Alert.alert(title, message, buttons);
   };
 
   const handleAccountPress = () => {
@@ -213,13 +232,6 @@ export default function SettingsHome({ navigation }: Props) {
         {
           text: 'Ausloggen',
           onPress: handleLogout,
-        },
-        {
-          text: 'Account wechseln',
-          onPress: async () => {
-            await handleLogout();
-            // After logout, user can login with different account
-          },
         },
       ]
     );
@@ -254,17 +266,32 @@ export default function SettingsHome({ navigation }: Props) {
             <View style={styles.accountHeader}>
               <Text style={[styles.accountIcon]}>👤</Text>
               <View style={styles.accountInfo}>
-                <Text style={[styles.accountEmail, { color: theme.colors.text }]}>
+                <Text
+                  style={[
+                    styles.accountEmail,
+                    { color: theme.mode === 'dark' ? '#FFFFFF' : theme.colors.text },
+                  ]}
+                >
                   {accountInfo?.email ?? user.email ?? 'Account'}
                 </Text>
                 {accountInfo?.hasSync ? (
-                  <Text style={[styles.accountSyncStatus, { color: theme.colors.muted }]}>
+                  <Text
+                    style={[
+                      styles.accountSyncStatus,
+                      { color: theme.mode === 'dark' ? '#FFFFFF' : theme.colors.textMuted },
+                    ]}
+                  >
                     {accountInfo?.lastSyncTime
                       ? `Zuletzt synchronisiert: ${accountInfo.lastSyncTime}`
                       : 'Cloud-Sync aktiv'}
                   </Text>
                 ) : (
-                  <Text style={[styles.accountSyncStatus, { color: theme.colors.muted }]}>
+                  <Text
+                    style={[
+                      styles.accountSyncStatus,
+                      { color: theme.mode === 'dark' ? '#FFFFFF' : theme.colors.textMuted },
+                    ]}
+                  >
                     Cloud-Sync nicht aktiviert
                   </Text>
                 )}
@@ -285,9 +312,21 @@ export default function SettingsHome({ navigation }: Props) {
                   },
                 ]}
               >
-                <Text style={[styles.logoutButtonText, { color: theme.colors.text }]}>Ausloggen</Text>
+                <Text
+                  style={[
+                    styles.logoutButtonText,
+                    { color: theme.mode === 'dark' ? '#FFFFFF' : theme.colors.text },
+                  ]}
+                >
+                  Ausloggen
+                </Text>
               </Pressable>
-              <Text style={[styles.accountHint, { color: theme.colors.muted }]}>
+              <Text
+                style={[
+                  styles.accountHint,
+                  { color: theme.mode === 'dark' ? '#FFFFFF' : theme.colors.textMuted },
+                ]}
+              >
                 Tippen für Account-Details
               </Text>
             </View>
@@ -334,30 +373,36 @@ const styles = StyleSheet.create({
   accountCard: {
     borderRadius: radius.l,
     borderWidth: 1,
-    padding: spacing.m,
-    marginBottom: spacing.s,
+    padding: spacing.l,
+    marginBottom: spacing.m,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
   },
   accountHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.m,
-    marginBottom: spacing.xs,
+    marginBottom: spacing.s,
   },
   accountIcon: {
-    fontSize: 32,
+    fontSize: 34,
   },
   accountInfo: {
     flex: 1,
   },
   accountEmail: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
     fontFamily: 'Inter-SemiBold',
     marginBottom: 2,
   },
   accountSyncStatus: {
-    fontSize: 13,
+    fontSize: 14,
     fontFamily: 'Inter-Regular',
+    lineHeight: 18,
   },
   accountHint: {
     fontSize: 12,
@@ -369,17 +414,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: spacing.s,
-    gap: spacing.s,
+    marginTop: spacing.m,
+    gap: spacing.m,
   },
   logoutButton: {
-    paddingHorizontal: spacing.l,
-    paddingVertical: spacing.s,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.s + 2,
     borderRadius: radius.pill,
     borderWidth: 1,
   },
   logoutButtonText: {
-    fontSize: 14,
+    fontSize: 15,
     fontFamily: 'Inter-SemiBold',
   },
   card: {

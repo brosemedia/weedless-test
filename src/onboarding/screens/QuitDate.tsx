@@ -23,9 +23,10 @@ export const QuitDateScreen: React.FC = () => {
   const lastConsumption = profile.lastConsumptionISO ? new Date(profile.lastConsumptionISO) : now;
 
   // Check if "now" is selected (within 1 minute tolerance)
-  const isQuitDateNow = profile.quitDateISO && Math.abs(new Date(profile.quitDateISO).getTime() - now.getTime()) < 60000;
+  const isQuitDateNow =
+    !!profile.quitDateISO && Math.abs(new Date(profile.quitDateISO).getTime() - now.getTime()) < 60000;
   // Check if "today" is selected (same day, time set to 00:00:00)
-  const isQuitDateToday = profile.quitDateISO && (() => {
+  const isQuitDateToday = !!profile.quitDateISO && (() => {
     const quitDateObj = new Date(profile.quitDateISO);
     const today = new Date();
     return quitDateObj.getFullYear() === today.getFullYear() &&
@@ -36,8 +37,10 @@ export const QuitDateScreen: React.FC = () => {
            quitDateObj.getSeconds() === 0;
   })();
 
-  const isLastConsumptionNow = profile.lastConsumptionISO && Math.abs(new Date(profile.lastConsumptionISO).getTime() - now.getTime()) < 60000;
-  const isLastConsumptionToday = profile.lastConsumptionISO && (() => {
+  const isLastConsumptionNow =
+    !!profile.lastConsumptionISO &&
+    Math.abs(new Date(profile.lastConsumptionISO).getTime() - now.getTime()) < 60000;
+  const isLastConsumptionToday = !!profile.lastConsumptionISO && (() => {
     const lastConsumptionObj = new Date(profile.lastConsumptionISO);
     const today = new Date();
     return lastConsumptionObj.getFullYear() === today.getFullYear() &&

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, View, Text, Pressable, StyleSheet, Modal, Image, ImageBackground, Animated, FlatList } from 'react-native';
+import { ScrollView, View, Text, Pressable, StyleSheet, Modal, Image, Animated, FlatList } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import {
@@ -25,7 +25,8 @@ import { Ionicons } from '@expo/vector-icons';
 import HeroFigure from '../../assets/1900_81.svg';
 import { colors, spacing, radius, shadows } from '../design/tokens';
 import { HEADER_TOTAL_HEIGHT } from '../components/AppHeader';
-import CheckForm, { type DailyCheckinData } from '../components/MultiStepDailyCheckin';
+import CheckinModal from '../components/CheckinModal';
+import type { DailyCheckinData } from '../types/checkin';
 import { useApp } from '../store/app';
 import { useQuickActionsVisibility } from '../hooks/useQuickActionsVisibility';
 import { useHeaderTransparency } from '../hooks/useHeaderTransparency';
@@ -34,14 +35,12 @@ import { TASK_XP, TaskKey } from '../lib/tasks';
 import StroopGame from '../games/stroop/StroopGame';
 import { getLastStroopSummary, type SessionSummary } from '../games/stroop/storage';
 import type { DayLog } from '../types/profile';
-import { FrostedSurface } from '../design/FrostedSurface';
 import { dayKeysBetween, parseDateKey } from '../lib/pause';
 import { createConsumptionEntry } from '../lib/consumption';
+import { normalizeCheckinConsumption } from '../lib/checkin';
 import { useUiStore } from '../store/ui';
 import { useTheme } from '../theme/useTheme';
 import type { ThemeColors, ThemeMode } from '../theme/themes';
-
-const AMBIENT_BG = require('../../assets/ambient_bg.png');
 
 type TaskId = TaskKey;
 
@@ -151,6 +150,8 @@ const buildMonthDays = (monthStart: Date, weekStartsOn: 0 | 1) => {
 };
 
 const MONTH_DAY_WIDTH = `${100 / 7}%`;
+const CONSUMPTION_COLOR = '#f97316';
+const ABSTINENT_COLOR = '#22c55e';
 const ACTIVITY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   Aufgaben: 'checkmark-done-outline',
   Konsum: 'leaf-outline',
@@ -167,10 +168,12 @@ const DAY_ITEM_STEP = DAY_ITEM_WIDTH + 8;
 const DAY_ROW_INSET = spacing.s as number;
 
 function LegendDot({ color, label }: { color: string; label: string }) {
+  const { theme } = useTheme();
+  const palette = theme.colors;
   return (
     <View style={styles.legendItem}>
       <View style={[styles.legendDot, { backgroundColor: color }]} />
-      <Text style={styles.legendLabel}>{label}</Text>
+      <Text style={[styles.legendLabel, { color: palette.text }]}>{label}</Text>
     </View>
   );
 }
@@ -355,11 +358,21 @@ type TaskCardProps = {
 };
 
 function TaskCard({ task, completed, disabled, onPress, infoText, chipLabel, testID }: TaskCardProps) {
+  const { theme } = useTheme();
+  const palette = theme.colors;
+  const isDark = theme.mode === 'dark';
   const interactive = Boolean(onPress) && !disabled;
   const xp = TASK_XP[task.id] ?? 0;
   const secondary = disabled ? 'Nur heute möglich' : completed ? 'Starker Move' : 'Dranbleiben';
   const ctaLabel = completed ? 'Geschafft' : 'Tippen & starten';
-  const iconColor = completed ? lt.surface : lt.text;
+  const iconColor = completed ? '#ffffff' : isDark ? palette.text : lt.text;
+  const cardBackground = isDark ? palette.surfaceMuted : '#ffffff';
+  const cardBorder = isDark ? palette.border : lt.border;
+  const overlayColor = isDark ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.95)';
+  const overlayFallback = isDark ? palette.surfaceMuted : '#ffffff';
+  const shadowColor = isDark ? 'rgba(0,0,0,0.55)' : undefined;
+  const chipBg = completed ? 'rgba(255,255,255,0.15)' : isDark ? palette.surfaceMuted : lt.surfaceMuted;
+  const chipTextColor = completed ? '#ffffff' : palette.text;
   const icon =
     task.id === 'zen-glide' ? (
       <HeroFigure width={28} height={28} />
@@ -376,12 +389,35 @@ function TaskCard({ task, completed, disabled, onPress, infoText, chipLabel, tes
 
   const cardContent = (
     <View style={styles.taskContent}>
-      <View style={[styles.taskIcon, completed && styles.taskIconDone]}>{icon}</View>
-      <Text style={[styles.taskTitle, completed && styles.taskTitleDone]} numberOfLines={2}>
+      <View
+        style={[
+          styles.taskIcon,
+          completed && styles.taskIconDone,
+          isDark && { backgroundColor: palette.surfaceMuted },
+        ]}
+      >
+        {icon}
+      </View>
+      <Text
+        style={[
+          styles.taskTitle,
+          completed && styles.taskTitleDone,
+          { color: completed ? '#ffffff' : palette.text },
+        ]}
+        numberOfLines={2}
+      >
         {task.title}
       </Text>
       <View style={styles.taskMeta}>
-        <Text style={[styles.taskFootnote, completed && styles.taskFootnoteDone]}>{secondary}</Text>
+        <Text
+          style={[
+            styles.taskFootnote,
+            completed && styles.taskFootnoteDone,
+            { color: completed ? 'rgba(255,255,255,0.85)' : palette.textMuted },
+          ]}
+        >
+          {secondary}
+        </Text>
         <View style={styles.taskActionRow}>
           <View style={styles.taskActionInfo}>
             <Text
@@ -389,6 +425,7 @@ function TaskCard({ task, completed, disabled, onPress, infoText, chipLabel, tes
                 styles.taskActionLabel,
                 completed && styles.taskActionLabelDone,
                 disabled && styles.taskActionLabelDisabled,
+                { color: disabled ? palette.textMuted : completed ? '#ffffff' : palette.text },
               ]}
             >
               {ctaLabel}
@@ -399,12 +436,14 @@ function TaskCard({ task, completed, disabled, onPress, infoText, chipLabel, tes
           <Ionicons
             name={completed ? 'checkmark-circle' : 'play-circle'}
             size={44}
-            color={disabled ? lt.textMuted : completed ? lt.surface : lt.text}
+            color={disabled ? palette.textMuted : completed ? '#ffffff' : palette.text}
           />
         </View>
         {chipLabel ? (
-          <View style={[styles.taskChip, completed && styles.taskChipDone]}>
-            <Text style={[styles.taskChipText, completed && styles.taskChipTextDone]}>{chipLabel}</Text>
+          <View style={[styles.taskChip, completed && styles.taskChipDone, { backgroundColor: chipBg }]}>
+            <Text style={[styles.taskChipText, completed && styles.taskChipTextDone, { color: chipTextColor }]}>
+              {chipLabel}
+            </Text>
           </View>
         ) : null}
       </View>
@@ -426,20 +465,33 @@ function TaskCard({ task, completed, disabled, onPress, infoText, chipLabel, tes
       <View style={styles.taskCardBody}>
         {xpBadge}
         {completed === true ? (
-          <View style={[styles.taskInner, styles.taskInnerDone]}>
+          <View
+            style={[
+              styles.taskInner,
+              styles.taskInnerDone,
+              {
+                backgroundColor: palette.primary,
+                borderColor: palette.primary,
+                shadowColor,
+              },
+            ]}
+          >
             {cardContent}
           </View>
         ) : (
-          <FrostedSurface
-            borderRadius={radius.l}
-            intensity={70}
-            fallbackColor="#ffffff"
-            overlayColor="rgba(255,255,255,0.95)"
-            tint="light"
-            style={[styles.taskInner, styles.taskInnerBlur]}
+          <View
+            style={[
+              styles.taskInner,
+              styles.taskInnerBlur,
+              {
+                backgroundColor: cardBackground,
+                borderColor: cardBorder,
+                shadowColor,
+              },
+            ]}
           >
             {cardContent}
-          </FrostedSurface>
+          </View>
         )}
       </View>
     </Pressable>
@@ -476,10 +528,9 @@ function CalendarOverviewModal({
   const [monthBlockHeight, setMonthBlockHeight] = useState<number | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const initialScrollDone = useRef(false);
-  const lastTapRef = useRef<{ date: Date; ts: number } | null>(null);
 
   const { locale, weekStartsOn } = localeInfo ?? resolveLocaleInfo();
-  const today = startOfDay(new Date());
+  const today = useMemo(() => startOfDay(new Date()), []);
 
   const { journeyStart, journeyEnd } = useMemo(() => {
     const logDates = Object.keys(dayLogs)
@@ -568,16 +619,10 @@ function CalendarOverviewModal({
   }, [visible, monthBlockHeight, monthStarts, today]);
 
   const handleDayPress = (day: Date) => {
-    const nowTs = Date.now();
-    const isDoubleTap =
-      lastTapRef.current && isSameDay(day, lastTapRef.current.date) && nowTs - lastTapRef.current.ts < 450;
     setFocusedDate(day);
     onSelectDate(day);
-    if (isDoubleTap) {
-      setActivityDate(day);
-      setActivityModalVisible(true);
-    }
-    lastTapRef.current = { date: day, ts: nowTs };
+    setActivityDate(day);
+    setActivityModalVisible(true);
   };
 
   return (
@@ -619,10 +664,11 @@ function CalendarOverviewModal({
           </Pressable>
         </View>
         <View style={[styles.calendarLegendRow, { backgroundColor: palette.surface, borderColor: palette.border }]}>
-          <LegendDot color={palette.primary} label="Aktuelle Pause" />
-          <LegendDot color="rgba(16,104,74,0.35)" label="Vergangene Pause" />
-          <LegendDot color="#f59e0b" label="Konsum" />
-          <LegendDot color="#22c55e" label="Konsumfrei" />
+          <LegendDot color="rgba(16,104,74,0.28)" label="Aktive Pause (Hintergrund)" />
+          <LegendDot color="rgba(16,104,74,0.18)" label="Vergangene Pause" />
+          <LegendDot color={lt.primary} label="Aufgaben erledigt" />
+          <LegendDot color={CONSUMPTION_COLOR} label="Konsum" />
+          <LegendDot color={lt.warning} label="Notizen / Tests" />
         </View>
         <View
           style={[
@@ -747,33 +793,35 @@ function CalendarOverviewModal({
                           ],
                           pressed && styles.calendarMonthDayPressed,
                         ]}
-                        >
-                        <Text
-                          style={[
-                            styles.calendarMonthDayText,
-                            !isCurrentMonth && styles.calendarMonthDayTextMuted,
-                            isSelected && [styles.calendarMonthDayTextSelected, { color: palette.surface }],
-                            isFuture && { color: palette.text },
-                            isToday && { fontWeight: '800' },
-                          ]}
-                        >
-                          {format(day, 'd')}
-                        </Text>
-                        {!isFuture && (
-                          <View style={styles.calendarIndicatorRow}>
-                            {hasTasks ? (
-                              <View style={[styles.calendarIndicatorDot, styles.calendarIndicatorTask, { opacity: 0.95 }]} />
-                            ) : null}
-                            {hasConsumption ? (
-                              <View
-                                style={[styles.calendarIndicatorDot, styles.calendarIndicatorConsumption, { opacity: 0.95 }]}
-                              />
-                            ) : null}
-                            {hasOther ? (
-                              <View style={[styles.calendarIndicatorDot, styles.calendarIndicatorOther, { opacity: 0.95 }]} />
-                            ) : null}
-                          </View>
-                        )}
+                      >
+                        <View style={styles.calendarMonthDayContent}>
+                          <Text
+                            style={[
+                              styles.calendarMonthDayText,
+                              !isCurrentMonth && styles.calendarMonthDayTextMuted,
+                              isSelected && [styles.calendarMonthDayTextSelected, { color: palette.surface }],
+                              isFuture && { color: palette.text },
+                              isToday && { fontWeight: '800' },
+                            ]}
+                          >
+                            {format(day, 'd')}
+                          </Text>
+                          {!isFuture && (
+                            <View style={styles.calendarIndicatorRow}>
+                              {hasTasks ? (
+                                <View style={[styles.calendarIndicatorDot, styles.calendarIndicatorTask, { opacity: 0.95 }]} />
+                              ) : null}
+                              {hasConsumption ? (
+                                <View
+                                  style={[styles.calendarIndicatorDot, styles.calendarIndicatorConsumption, { opacity: 0.95 }]}
+                                />
+                              ) : null}
+                              {hasOther ? (
+                                <View style={[styles.calendarIndicatorDot, styles.calendarIndicatorOther, { opacity: 0.95 }]} />
+                              ) : null}
+                            </View>
+                          )}
+                        </View>
                       </Pressable>
                     );
                   })}
@@ -899,7 +947,7 @@ export default function TrackenScreen() {
   const userStartDate = useMemo(() => {
     return normalizeStartDate(profile?.startTimestamp);
   }, [profile?.startTimestamp]);
-  const today = startOfDay(new Date());
+  const today = useMemo(() => startOfDay(new Date()), []);
   const normalizedUserStartDate = useMemo(() => {
     if (!userStartDate) return null;
     return isAfter(userStartDate, today) ? today : userStartDate;
@@ -922,6 +970,7 @@ export default function TrackenScreen() {
   const [currentTaskIndex, setCurrentTaskIndex] = useState(0);
   const lastDayTapRef = useRef<{ date: Date; ts: number } | null>(null);
   const compactListRef = useRef<ScrollView | null>(null);
+  const initialCompactOffsetRef = useRef<{ x: number; y: number } | null>(null);
   const [visibleMonthDate, setVisibleMonthDate] = useState<Date>(() => new Date());
   
   // Task Scroll Konstanten
@@ -946,6 +995,18 @@ export default function TrackenScreen() {
     const safeStart = isAfter(validStart, today) ? addDays(today, -30) : validStart;
     return eachDayOfInterval({ start: safeStart, end: today });
   }, [today, normalizedUserStartDate]);
+
+  const initialCompactOffset = useMemo(() => {
+    if (!compactDays.length) return 0;
+    const todayIndex = compactDays.findIndex((d) => isSameDay(d, today));
+    const index = todayIndex >= 0 ? todayIndex : compactDays.length - 1;
+    return Math.max(0, DAY_ROW_INSET + DAY_ITEM_STEP * index);
+  }, [compactDays, today]);
+
+  useEffect(() => {
+    if (initialCompactOffsetRef.current || !compactDays.length) return;
+    initialCompactOffsetRef.current = { x: initialCompactOffset, y: 0 };
+  }, [compactDays, initialCompactOffset]);
 
   useEffect(() => {
     setWeekStart(startOfWeek(selectedDate, { weekStartsOn: localeInfo.weekStartsOn }));
@@ -981,16 +1042,11 @@ export default function TrackenScreen() {
     : undefined;
 
   const handleSelectDay = (day: Date) => {
-    const nowTs = Date.now();
-    const lastTap = lastDayTapRef.current;
-    const isSameAsLast = lastTap && isSameDay(day, lastTap.date) && nowTs - lastTap.ts < 450;
     setSelectedDate(day);
     setWeekStart(startOfWeek(day, { weekStartsOn: localeInfo.weekStartsOn }));
-    if (isSameAsLast) {
-      setActivityDate(day);
-      setActivityModalVisible(true);
-    }
-    lastDayTapRef.current = { date: day, ts: nowTs };
+    setActivityDate(day);
+    setActivityModalVisible(true);
+    lastDayTapRef.current = { date: day, ts: Date.now() };
   };
 
   const changeWeek = (offset: number) => {
@@ -1042,13 +1098,27 @@ export default function TrackenScreen() {
     setVisibleMonthDate(selectedDate);
   }, [selectedDate]);
 
+  useEffect(() => {
+    if (!isFocused) return;
+    const now = new Date();
+    setSelectedDate(now);
+    setWeekStart(startOfWeek(now, { weekStartsOn: localeInfo.weekStartsOn }));
+    setVisibleMonthDate(now);
+    requestAnimationFrame(() => {
+      const index = compactDays.findIndex((d) => isSameDay(d, now));
+      if (index < 0) return;
+      const x = DAY_ROW_INSET + DAY_ITEM_STEP * index;
+      compactListRef.current?.scrollTo({ x, animated: false });
+    });
+  }, [isFocused, localeInfo.weekStartsOn, compactDays]);
+
   const openCheck = () => setShowCheck(true);
   const closeCheck = () => setShowCheck(false);
   const openCalendarModal = () => setShowCalendarModal(true);
   const closeCalendarModal = () => setShowCalendarModal(false);
 
   const submitCheck = (data: DailyCheckinData) => {
-    const consumed = data.usedToday ? Math.max(0, data.amountGrams) : 0;
+    const normalized = normalizeCheckinConsumption(data);
     const lastConsumptionTimestamp =
       data.usedToday ? timestampFromKey(selectedKey, data.uses?.[0]?.time) : undefined;
     const existing = dayLogs[selectedKey];
@@ -1058,6 +1128,13 @@ export default function TrackenScreen() {
       checkin: {
         usedToday: data.usedToday,
         amountGrams: data.amountGrams,
+        consumptionMethod: data.consumptionMethod,
+        consumptionAmountValue: data.consumptionAmountValue,
+        consumptionAmountUnit: data.consumptionAmountUnit,
+        reasonCategoryIds: data.reasonCategoryIds,
+        reasonIds: data.reasonIds,
+        withdrawalSymptomIds: data.withdrawalSymptomIds,
+        skippedSymptoms: data.skippedSymptoms,
         cravings0to10: data.cravings0to10,
         mood1to5: data.mood1to5,
         sleepHours: data.sleepHours,
@@ -1065,17 +1142,18 @@ export default function TrackenScreen() {
         recordedAt: Date.now(),
       },
     };
-    if (consumed > 0) {
-      const entry = createConsumptionEntry({
-        grams: consumed,
-        joints: data.consumptionJoints,
-        sessionMinutes: data.consumptionSessionMinutes,
-        method: data.consumptionMethod,
+
+    if (data.usedToday && normalized.grams > 0) {
+      const entry = normalized.entry ?? createConsumptionEntry({
+        grams: normalized.grams,
+        joints: normalized.joints,
+        sessionMinutes: normalized.sessionMinutes,
         paidByUser: data.consumptionPaidByUser ?? 'unknown',
-        amountSpent: data.consumptionAmountSpentEUR,
+        amountSpent: normalized.moneySpent,
+        method: data.consumptionMethod,
       });
       const nextEntries = [...(existing?.consumptionEntries ?? []), entry];
-      const totalGrams = (existing?.consumedGrams ?? 0) + (entry.grams ?? consumed);
+      const totalGrams = (existing?.consumedGrams ?? 0) + (entry.grams ?? normalized.grams);
       const totalJoints = (existing?.consumedJoints ?? 0) + (entry.joints ?? 0);
       const totalMinutes = (existing?.sessionMinutes ?? 0) + (entry.sessionMinutes ?? 0);
       const moneySpent =
@@ -1096,6 +1174,7 @@ export default function TrackenScreen() {
     } else if (existing?.consumedGrams) {
       updates.consumedGrams = existing.consumedGrams;
     }
+
     upsertDayLog({
       ...updates,
       lastConsumptionAt: lastConsumptionTimestamp,
@@ -1125,8 +1204,8 @@ export default function TrackenScreen() {
     if (!isBefore(dayStart, today)) return undefined; // Zukunft oder heute - kein Indikator
     
     const consumed = hasConsumption(date);
-    if (consumed) return '#f97316'; // Orange für Konsum
-    return '#22c55e'; // Grün für konsumfrei
+    if (consumed) return CONSUMPTION_COLOR; // Orange für Konsum
+    return ABSTINENT_COLOR; // Grün für konsumfrei
   };
 
   const navigateTo = (id: TaskId) => {
@@ -1198,6 +1277,7 @@ export default function TrackenScreen() {
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={[styles.compactWeekRow, { paddingHorizontal: spacing.s }]}
+              contentOffset={initialCompactOffsetRef.current ?? undefined}
               onScroll={(e) => updateVisibleMonth(e.nativeEvent.contentOffset.x)}
               scrollEventThrottle={16}
               onMomentumScrollEnd={(e) => updateVisibleMonth(e.nativeEvent.contentOffset.x)}
@@ -1487,41 +1567,13 @@ export default function TrackenScreen() {
         </SafeAreaView>
       </Modal>
 
-      <Modal
+      <CheckinModal
         visible={showCheck}
-        animationType="slide"
-        presentationStyle="fullScreen"
-        onRequestClose={closeCheck}
-      >
-        <ImageBackground source={AMBIENT_BG} style={styles.modalWrap} resizeMode="cover">
-          <View
-            style={[
-              styles.modalContent,
-              {
-                paddingTop: insets.top + sp.l,
-                paddingBottom: Math.max(sp.xl as number, (insets.bottom || 0) + sp.l) + 100, // Extra Padding für TabBar
-              },
-            ]}
-          >
-            <View style={styles.modalHead}>
-              <Text style={styles.modalTitle}>Check-in</Text>
-              <Pressable onPress={closeCheck} accessibilityRole="button" style={styles.modalBtn}>
-                <Text style={styles.modalBtnText}>Schließen</Text>
-              </Pressable>
-            </View>
-            <View style={styles.modalCard}>
-              <FrostedSurface borderRadius={radius.xl} style={styles.modalCardSurface}>
-                <CheckForm
-                  initial={{ dateISO: selectedDate.toISOString() }}
-                  onSubmit={submitCheck}
-                  onCancel={closeCheck}
-                  style={styles.checkinForm}
-                />
-              </FrostedSurface>
-            </View>
-          </View>
-        </ImageBackground>
-      </Modal>
+        onClose={closeCheck}
+        onSubmit={submitCheck}
+        initial={{ dateISO: selectedDate.toISOString() }}
+        title="Daily Check-in"
+      />
       <CalendarOverviewModal
         visible={showCalendarModal}
         onClose={closeCalendarModal}
@@ -2008,7 +2060,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff', // Solid white background
     width: '100%',
     ...shadows.sm,
-    height: 260,
+    minHeight: 240,
   },
   taskInnerBlur: {
     borderColor: lt.border,
@@ -2137,6 +2189,11 @@ const styles = StyleSheet.create({
   modalWrap: {
     flex: 1,
   },
+  checkModal: {
+    flex: 1,
+    paddingHorizontal: sp.l,
+    backgroundColor: lt.bg,
+  },
   modalContent: {
     flex: 1,
     paddingHorizontal: sp.l,
@@ -2162,6 +2219,12 @@ const styles = StyleSheet.create({
     color: lt.text,
     fontWeight: '600',
     fontSize: 14,
+  },
+  modalBody: {
+    flex: 1,
+    paddingTop: sp.m,
+    paddingHorizontal: sp.l,
+    paddingBottom: sp.l,
   },
   modalCard: {
     flex: 1,
@@ -2329,6 +2392,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: lt.surfaceMuted,
+    paddingVertical: 10,
+    gap: 0,
+  },
+  calendarMonthDayContent: {
+    flex: 1,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
   },
   calendarMonthDayPressed: {
     opacity: 0.9,
@@ -2364,7 +2436,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: lt.text,
     textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: 22,
   },
   calendarMonthDayTextMuted: {
     color: lt.textMuted,
@@ -2373,9 +2445,11 @@ const styles = StyleSheet.create({
     color: lt.primary,
   },
   calendarIndicatorRow: {
+    marginTop: 6,
     flexDirection: 'row',
     gap: 4,
-    marginTop: 6,
+    justifyContent: 'center',
+    minHeight: 6,
   },
   calendarIndicatorDot: {
     width: 6,
@@ -2386,7 +2460,7 @@ const styles = StyleSheet.create({
     backgroundColor: lt.primary,
   },
   calendarIndicatorConsumption: {
-    backgroundColor: lt.success,
+    backgroundColor: CONSUMPTION_COLOR,
   },
   calendarIndicatorOther: {
     backgroundColor: lt.warning,

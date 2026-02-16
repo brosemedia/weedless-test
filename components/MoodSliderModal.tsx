@@ -5,6 +5,7 @@ import { toDateKey } from '../src/lib/pause';
 import { useApp } from '../src/store/app';
 import { useTheme } from '../src/theme/useTheme';
 import { spacing, radius } from '../src/design/tokens';
+import type { DayCheckin } from '../src/types/profile';
 
 type MoodSliderModalProps = {
   visible: boolean;
@@ -47,7 +48,7 @@ export function MoodSliderModal({ visible, onClose }: MoodSliderModalProps) {
   const label = React.useMemo(() => getMoodLabel(mood), [mood]);
 
   const handleSave = React.useCallback(() => {
-    const existing = todayLog?.checkin ?? {};
+    const existing: Partial<DayCheckin> = todayLog?.checkin ?? {};
     const normalizedCheckin = {
       ...existing,
       usedToday: existing.usedToday ?? false,

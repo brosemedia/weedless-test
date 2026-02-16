@@ -4,6 +4,7 @@ import type { KpiType } from '../store/ui';
 import type { DayLog, Profile } from '../types/profile';
 import type { Pause } from '../types/pause';
 import type { XpState } from '../types/xp';
+import { getKpiColorByIndex, type KpiColor } from '../design/tokens';
 
 export type KpiConfig = {
   type: KpiType;
@@ -282,155 +283,75 @@ export const KPI_CONFIGS: KpiConfig[] = [
   },
 ];
 
-export function getKpiIconColor(type: KpiType): string {
-  const colorMap: Record<KpiType, string> = {
-    money: '#10B981',
-    grams: '#34D399',
-    joints: '#F59E0B',
-    time: '#3B82F6',
-    streak: '#FBBF24',
-    spent: '#EF4444',
-    consumed: '#A78BFA',
-    pauses: '#06B6D4',
-    xp: '#FBBF24',
-    daysSinceConsumption: '#10B981',
-    avgMood: '#EC4899',
-    avgSleep: '#6366F1',
-    reactionChange: '#3B82F6',
-    currentMood: '#F59E0B',
+type KpiPalette = {
+  base: KpiColor;
+  border: string;
+  gradient: [string, string, string];
+  text: string;
+  track: string;
+};
+
+const clampChannel = (value: number) => Math.max(0, Math.min(255, value));
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const normalized = hex.replace('#', '');
+  const int = parseInt(normalized, 16);
+  return {
+    r: (int >> 16) & 255,
+    g: (int >> 8) & 255,
+    b: int & 255,
   };
-  return colorMap[type] || '#3B82F6';
 }
 
-export function getKpiCardColor(
-  type: KpiType,
-  options?: { dark?: boolean }
-): { border: string; gradient: [string, string, string] } {
+function rgbToHex({ r, g, b }: { r: number; g: number; b: number }): string {
+  const toHex = (v: number) => Math.round(clampChannel(v)).toString(16).padStart(2, '0');
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+/**
+ * Hellt eine Farbe auf oder dunkelt sie ab. amount: -1..1
+ */
+function adjustHex(hex: string, amount: number): string {
+  const { r, g, b } = hexToRgb(hex);
+  const adjust = (channel: number) =>
+    amount >= 0
+      ? Math.round(channel + (255 - channel) * amount)
+      : Math.round(channel * (1 + amount));
+  return rgbToHex({
+    r: adjust(r),
+    g: adjust(g),
+    b: adjust(b),
+  });
+}
+
+function relativeLuminance({ r, g, b }: { r: number; g: number; b: number }) {
+  const srgb = [r, g, b].map((v) => {
+    const channel = v / 255;
+    return channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
+}
+
+function getContrastingTextColor(hex: string): string {
+  const lum = relativeLuminance(hexToRgb(hex));
+  // Schwellenwert grob bei mittlerem Helligkeitsbereich
+  return lum > 0.55 ? '#1F1A0E' : '#FFFFFF';
+}
+
+export function getKpiPaletteByIndex(index: number, options?: { dark?: boolean }): KpiPalette {
+  const base = getKpiColorByIndex(index);
   const isDark = options?.dark ?? false;
-  if (!isDark) {
-    const colorMap: Record<KpiType, { border: string; gradient: [string, string, string] }> = {
-      money: {
-        border: '#A7F3D0',
-        gradient: ['#047857', '#059669', '#10B981'], // Dunkelgrün
-      },
-      grams: {
-        border: '#86EFAC',
-        gradient: ['#065F46', '#047857', '#059669'], // Dunkelgrün
-      },
-      joints: {
-        border: '#FCD34D',
-        gradient: ['#92400E', '#B45309', '#D97706'], // Dunkelorange/Braun
-      },
-      time: {
-        border: '#93C5FD',
-        gradient: ['#1E40AF', '#2563EB', '#3B82F6'], // Dunkelblau
-      },
-      streak: {
-        border: '#FDE047',
-        gradient: ['#92400E', '#B45309', '#D97706'], // Dunkelorange/Braun
-      },
-      spent: {
-        border: '#FCA5A5',
-        gradient: ['#991B1B', '#DC2626', '#EF4444'], // Dunkelrot
-      },
-      consumed: {
-        border: '#C4B5FD',
-        gradient: ['#5B21B6', '#6D28D9', '#7C3AED'], // Dunkelviolett
-      },
-      pauses: {
-        border: '#67E8F9',
-        gradient: ['#155E75', '#0891B2', '#06B6D4'], // Dunkeltürkis
-      },
-      xp: {
-        border: '#FDE047',
-        gradient: ['#92400E', '#B45309', '#D97706'], // Dunkelorange/Braun
-      },
-      daysSinceConsumption: {
-        border: '#A7F3D0',
-        gradient: ['#047857', '#059669', '#10B981'], // Dunkelgrün
-      },
-      avgMood: {
-        border: '#F9A8D4',
-        gradient: ['#9F1239', '#BE185D', '#EC4899'], // Dunkelrosa
-      },
-      avgSleep: {
-        border: '#C7D2FE',
-        gradient: ['#3730A3', '#4338CA', '#4F46E5'], // Dunkelindigo
-      },
-      reactionChange: {
-        border: '#93C5FD',
-        gradient: ['#1E40AF', '#2563EB', '#3B82F6'], // Dunkelblau
-      },
-      currentMood: {
-        border: '#FCD34D',
-        gradient: ['#92400E', '#B45309', '#D97706'], // Dunkelorange/Braun
-      },
-    };
-    return (
-      colorMap[type] || { border: '#93C5FD', gradient: ['#1E40AF', '#2563EB', '#3B82F6'] }
-    );
-  }
+  const border = adjustHex(base, isDark ? -0.25 : 0.25);
+  const gradient: [string, string, string] = [
+    adjustHex(base, isDark ? -0.15 : -0.1),
+    base,
+    adjustHex(base, isDark ? 0.12 : 0.18),
+  ];
+  const text = getContrastingTextColor(base);
+  // Track für Fortschritt: heller bei dunklen Karten, dunkler bei hellen Karten
+  const track = isDark ? adjustHex(base, 0.28) : adjustHex(base, -0.28);
 
-  const darkMap: Record<KpiType, { border: string; gradient: [string, string, string] }> = {
-    money: {
-      border: '#0FA56B',
-      gradient: ['#022C22', '#064E3B', '#065F46'], // Sehr dunkelgrün
-    },
-    grams: {
-      border: '#10A15A',
-      gradient: ['#022C22', '#064E3B', '#065F46'], // Sehr dunkelgrün
-    },
-    joints: {
-      border: '#BD8A00',
-      gradient: ['#451A03', '#78350F', '#92400E'], // Sehr dunkelorange/Braun
-    },
-    time: {
-      border: '#1D6FDB',
-      gradient: ['#1E3A8A', '#1E40AF', '#2563EB'], // Sehr dunkelblau
-    },
-    streak: {
-      border: '#BD9800',
-      gradient: ['#451A03', '#78350F', '#92400E'], // Sehr dunkelorange/Braun
-    },
-    spent: {
-      border: '#C53030',
-      gradient: ['#7F1D1D', '#991B1B', '#B91C1C'], // Sehr dunkelrot
-    },
-    consumed: {
-      border: '#7A5AD9',
-      gradient: ['#3B1F5C', '#4C1D95', '#5B21B6'], // Sehr dunkelviolett
-    },
-    pauses: {
-      border: '#0E8CAF',
-      gradient: ['#0C4A6E', '#164E63', '#155E75'], // Sehr dunkeltürkis
-    },
-    xp: {
-      border: '#BD9800',
-      gradient: ['#451A03', '#78350F', '#92400E'], // Sehr dunkelorange/Braun
-    },
-    daysSinceConsumption: {
-      border: '#0FA56B',
-      gradient: ['#022C22', '#064E3B', '#065F46'], // Sehr dunkelgrün
-    },
-    avgMood: {
-      border: '#B93173',
-      gradient: ['#701A30', '#831843', '#9F1239'], // Sehr dunkelrosa
-    },
-    avgSleep: {
-      border: '#454CCF',
-      gradient: ['#1E1B4B', '#312E81', '#3730A3'], // Sehr dunkelindigo
-    },
-    reactionChange: {
-      border: '#2B6FD4',
-      gradient: ['#1E3A8A', '#1E40AF', '#2563EB'], // Sehr dunkelblau
-    },
-    currentMood: {
-      border: '#BD8A00',
-      gradient: ['#451A03', '#78350F', '#92400E'], // Sehr dunkelorange/Braun
-    },
-  };
-
-  return darkMap[type] || { border: '#1444A0', gradient: ['#1444A0', '#1B5BCF', 'transparent'] };
+  return { base, border, gradient, text, track };
 }
 
 export function buildKpiData({
@@ -631,7 +552,13 @@ export function buildKpiData({
       statsProfile.gramsPerDayBaseline && statsProfile.jointsPerDayBaseline
         ? statsProfile.gramsPerDayBaseline / Math.max(1, statsProfile.jointsPerDayBaseline)
         : GRAMS_PER_JOINT_DEFAULT;
+    const startTimestamp =
+      typeof statsProfile.startTimestamp === 'number' && Number.isFinite(statsProfile.startTimestamp)
+        ? statsProfile.startTimestamp
+        : 0;
     return dayLogValues.reduce((sum, log) => {
+      const dayTimestamp = parseDateKey(log.date).getTime();
+      if (dayTimestamp < startTimestamp) return sum;
       if (typeof log.consumedGrams === 'number') return sum + log.consumedGrams;
       if (typeof log.consumedJoints === 'number') return sum + log.consumedJoints * gramsPerJoint;
       return sum;

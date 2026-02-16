@@ -41,6 +41,23 @@ export const colors = {
   },
 } as const;
 
+export const KPI_COLORS = [
+  '#514B23', // dunkles Olivbraun
+  '#656839', // Olivgrün
+  '#A9BD68', // abgedunkeltes Limegrün
+  '#DE6B48', // warmes Orange-Rot
+  '#E58F65', // helleres Apricot-Orange
+] as const;
+
+export type KpiColor = (typeof KPI_COLORS)[number];
+
+export function getKpiColorByIndex(index: number): KpiColor {
+  const paletteSize = KPI_COLORS.length;
+  // Modulo in beide Richtungen robust halten
+  const normalizedIndex = ((index % paletteSize) + paletteSize) % paletteSize;
+  return KPI_COLORS[normalizedIndex];
+}
+
 export const spacing = {
   xs: 6,
   s: 10,
@@ -86,6 +103,15 @@ export const fonts = {
   bold: 'Inter-Bold',
 } as const;
 
+const TYPOGRAPHY_VARIANTS = {
+  h1: { fontSize: 30, fontFamily: fonts.bold, letterSpacing: 0.2 },
+  h2: { fontSize: 20, fontFamily: fonts.semibold },
+  body: { fontSize: 16, fontFamily: fonts.regular, lineHeight: 22 },
+  label: { fontSize: 13, fontFamily: fonts.semibold, letterSpacing: 0.4, textTransform: 'uppercase' },
+  button: { fontSize: 16, fontFamily: fonts.semibold },
+  caption: { fontSize: 12, fontFamily: fonts.medium },
+} as const;
+
 export const typography = {
   sizes: {
     xs: 12,
@@ -102,14 +128,14 @@ export const typography = {
     semibold: '600',
     bold: '700',
   } as const,
-  variants: {
-    h1: { fontSize: 30, fontFamily: fonts.bold, letterSpacing: 0.2 },
-    h2: { fontSize: 20, fontFamily: fonts.semibold },
-    body: { fontSize: 16, fontFamily: fonts.regular, lineHeight: 22 },
-    label: { fontSize: 13, fontFamily: fonts.semibold, letterSpacing: 0.4, textTransform: 'uppercase' },
-    button: { fontSize: 16, fontFamily: fonts.semibold },
-    caption: { fontSize: 12, fontFamily: fonts.medium },
-  },
+  variants: TYPOGRAPHY_VARIANTS,
+  // Legacy accessors kept for compatibility with existing screens.
+  h1: TYPOGRAPHY_VARIANTS.h1,
+  h2: TYPOGRAPHY_VARIANTS.h2,
+  body: TYPOGRAPHY_VARIANTS.body,
+  label: TYPOGRAPHY_VARIANTS.label,
+  button: TYPOGRAPHY_VARIANTS.button,
+  caption: TYPOGRAPHY_VARIANTS.caption,
 } as const;
 
 export const shadows = {

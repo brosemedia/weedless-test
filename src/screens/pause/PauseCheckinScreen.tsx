@@ -278,8 +278,8 @@ export default function PauseCheckinScreen({ navigation }: PauseCheckinScreenPro
   };
   
   // Grüner Gradient-Hintergrund - schöne, beruhigende Farben
-  const gradientColors = ['#0F5132', '#1B5E20', '#2E7D32', '#4CAF50', '#66BB6A'];
-  const gradientLocations = [0, 0.2, 0.5, 0.8, 1];
+  const gradientColors = ['#0F5132', '#1B5E20', '#2E7D32', '#4CAF50', '#66BB6A'] as const;
+  const gradientLocations = [0, 0.2, 0.5, 0.8, 1] as const;
   
   // Animierter Gradient-Effekt für mehr Tiefe
   const gradientAnimation = useSharedValue(0);
@@ -323,7 +323,7 @@ export default function PauseCheckinScreen({ navigation }: PauseCheckinScreenPro
         {/* Subtiler animierter Overlay für mehr Tiefe */}
         <Animated.View style={[StyleSheet.absoluteFill, animatedGradientStyle]}>
           <LinearGradient
-            colors={['rgba(76, 175, 80, 0.2)', 'transparent', 'rgba(27, 94, 32, 0.3)']}
+            colors={['rgba(76, 175, 80, 0.2)', 'transparent', 'rgba(27, 94, 32, 0.3)'] as const}
             start={{ x: 0.5, y: 0 }}
             end={{ x: 0.5, y: 1 }}
             style={StyleSheet.absoluteFill}
@@ -693,4 +693,3 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 });
-

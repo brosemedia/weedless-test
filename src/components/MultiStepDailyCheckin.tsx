@@ -1,57 +1,19 @@
-import React, { useMemo, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, ScrollView } from 'react-native';
-import Slider from '@react-native-community/slider';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, TextInput, StyleSheet, Pressable, Animated, ScrollView } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { HapticSlider } from '../onboarding/components/HapticSlider';
+import { useTheme } from '../theme/useTheme';
+import { spacing, radius } from '../design/tokens';
+import { haptics } from '../services/haptics';
+import { REASON_CATEGORIES, REASON_OPTIONS } from '../constants/checkinReasons';
+import { CHECKIN_SYMPTOM_SECTIONS } from '../constants/checkinSymptoms';
+import { gramsPerJointFromProfile } from '../lib/consumption';
 import { useApp } from '../store/app';
-import ConsumptionFormFields from './ConsumptionFormFields';
-import {
-  createEmptyConsumptionForm,
-  deriveDefaultAmountSpent,
-  gramsPerJointFromProfile,
-  normalizeConsumptionForm,
-  type ConsumptionFormValues,
-} from '../lib/consumption';
-
-export type DailyUseEvent = {
-  type: 'use';
-  amountGrams?: number;
-  form?: 'Joint' | 'Vape' | 'Bong' | 'Edible' | 'Andere';
-  time?: string; // HH:MM
-  craving0to10?: number;
-  notes?: string;
-};
-
-export type DailyPauseEvent = {
-  type: 'pause';
-  time?: string; // HH:MM
-  schlafstoerung?: number;
-  reizbarkeit?: number;
-  unruhe?: number;
-  appetit?: number;
-  schwitzen?: number;
-  craving0to10?: number;
-  notes?: string;
-};
-
-export type DailyCheckinData = {
-  dateISO: string;
-  usedToday: boolean;
-  amountGrams: number;
-  cravings0to10: number;
-  mood1to5: number;
-  sleepHours: number;
-  notes?: string;
-  consumptionPaidByUser?: ConsumptionFormValues['paidByUser'];
-  consumptionAmountSpentEUR?: number;
-  consumptionSessionMinutes?: number;
-  consumptionMethod?: ConsumptionFormValues['method'];
-  consumptionJoints?: number;
-  uses?: DailyUseEvent[];
-  pauses?: DailyPauseEvent[];
-};
+import type { DailyCheckinData } from '../types/checkin';
+import type { ConsumptionMethod, ConsumptionAmountUnit } from '../types/profile';
 
 export type Props = {
-  initial?: Partial<DailyCheckinData>; // optional
+  initial?: Partial<DailyCheckinData>;
   onSubmit?: (checkin: DailyCheckinData) => void;
   onCancel?: () => void;
   style?: any;
@@ -59,214 +21,175 @@ export type Props = {
 
 type StepKey =
   | 'mode'
-  | 'consumption'
-  | 'craving'
+  | 'method'
+  | 'amount'
+  | 'reasons'
   | 'sleep'
-  | 'sym_schlaf'
-  | 'sym_reiz'
-  | 'sym_unruhe'
-  | 'sym_appetit'
-  | 'sym_schwitz'
+  | 'mood'
+  | 'craving'
+  | 'symptoms'
   | 'notes'
   | 'review';
 
-const USE_METHOD_LABELS: Record<ConsumptionFormValues['method'], DailyUseEvent['form']> = {
-  joint: 'Joint',
-  vape: 'Vape',
-  bong: 'Bong',
-  edible: 'Edible',
-  other: 'Andere',
+const METHOD_OPTIONS: { key: ConsumptionMethod; label: string; unit: ConsumptionAmountUnit }[] = [
+  { key: 'joint', label: 'Joint', unit: 'g' },
+  { key: 'bong', label: 'Bong', unit: 'g' },
+  { key: 'pipe', label: 'Pipe', unit: 'g' },
+  { key: 'vape', label: 'Vaporizer', unit: 'g' },
+  { key: 'edible', label: 'Edible', unit: 'mg_thc' },
+  { key: 'wax', label: 'Dab / Wax', unit: 'g' },
+  { key: 'oil', label: 'Öl / Tinktur', unit: 'mg_thc' },
+  { key: 'other', label: 'Sonstiges', unit: 'g' },
+];
+
+const moodEmoji = (value: number) => {
+  if (value <= 1.5) return '😢';
+  if (value <= 2.5) return '😔';
+  if (value <= 3.5) return '😐';
+  if (value <= 4.5) return '🙂';
+  return '😊';
+};
+
+const moodLabel = (value: number) => {
+  if (value <= 1.5) return 'Sehr schlecht';
+  if (value <= 2.5) return 'Schlecht';
+  if (value <= 3.5) return 'Okay';
+  if (value <= 4.5) return 'Gut';
+  return 'Sehr gut';
+};
+
+const formatHours = (value: number) => `${(Math.round(value * 10) / 10).toFixed(1)} h`;
+
+const Chip = ({
+  active,
+  label,
+  onPress,
+}: {
+  active: boolean;
+  label: string;
+  onPress: () => void;
+}) => {
+  const { theme } = useTheme();
+  const colors = theme.colors;
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        {
+          paddingHorizontal: spacing.m,
+          paddingVertical: spacing.s,
+          borderRadius: radius.pill,
+          borderWidth: 1,
+          borderColor: active ? colors.primary : colors.border,
+          backgroundColor: active ? colors.primaryMuted : colors.surface,
+        },
+        pressed && { opacity: 0.9 },
+      ]}
+    >
+      <Text
+        style={{
+          color: active ? colors.text : colors.textMuted,
+          fontWeight: '600',
+        }}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
 };
 
 export default function MultiStepDailyCheckin({ initial, onSubmit, onCancel, style }: Props): React.ReactElement {
   const nowISO = useMemo(() => new Date().toISOString(), []);
-  const [modeChoice, setModeChoice] = useState<boolean | null>(
-    typeof initial?.usedToday === 'boolean' ? initial.usedToday : false
-  );
-  const usedToday = modeChoice === true;
+  const { theme } = useTheme();
+  const colors = theme.colors;
   const profile = useApp((s) => s.profile);
-  const dayLogs = useApp((s) => s.dayLogs);
+  const insets = useSafeAreaInsets();
   const gramsPerJoint = useMemo(() => gramsPerJointFromProfile(profile), [profile]);
-  const defaultAmountSuggestion = useMemo(
-    () => deriveDefaultAmountSpent(dayLogs, profile),
-    [dayLogs, profile]
-  );
-  const [consumptionForm, setConsumptionForm] = useState<ConsumptionFormValues>(() =>
-    createEmptyConsumptionForm()
-  );
-  const [cravings, setCravings] = useState<string>((initial?.cravings0to10 ?? 0).toString());
-  const [sleep, setSleep] = useState<string>((initial?.sleepHours ?? 7).toString());
-  const [notes, setNotes] = useState<string>(initial?.notes ?? '');
-  // Pause Symptome
-  const [symSchlaf, setSymSchlaf] = useState<string>('0');
-  const [symReiz, setSymReiz] = useState<string>('0');
-  const [symUnruhe, setSymUnruhe] = useState<string>('0');
-  const [symAppetit, setSymAppetit] = useState<string>('0');
-  const [symSchwitz, setSymSchwitz] = useState<string>('0');
-  React.useEffect(() => {
-    if (initial?.amountGrams && initial.amountGrams > 0) {
-      setConsumptionForm((prev) => ({
-        ...prev,
-        quantity: String(initial.amountGrams),
-        unit: 'grams',
-      }));
-    }
-  }, [initial?.amountGrams]);
 
-  const useDaySteps: StepKey[] = ['mode', 'consumption', 'craving', 'sleep', 'notes', 'review'];
-  const pauseDaySteps: StepKey[] = ['mode', 'craving', 'sleep', 'sym_schlaf', 'sym_reiz', 'sym_unruhe', 'sym_appetit', 'sym_schwitz', 'notes', 'review'];
+  const [modeChoice, setModeChoice] = useState<boolean | null>(
+    typeof initial?.usedToday === 'boolean' ? initial.usedToday : null
+  );
+  const [method, setMethod] = useState<ConsumptionMethod>('joint');
+  const [amountUnit, setAmountUnit] = useState<ConsumptionAmountUnit>('g');
+  const [amountValue, setAmountValue] = useState<number>(0.5);
+  const [sleepHours, setSleepHours] = useState<number>(initial?.sleepHours ?? 7);
+  const [mood, setMood] = useState<number>(3);
+  const [craving, setCraving] = useState<number>(0);
+  const [reasonCategories, setReasonCategories] = useState<string[]>([]);
+  const [reasons, setReasons] = useState<string[]>([]);
+  const [symptoms, setSymptoms] = useState<string[]>([]);
+  const [skippedSymptoms, setSkippedSymptoms] = useState<boolean>(false);
+  const [notes, setNotes] = useState<string>(initial?.notes ?? '');
+  const [navHeight, setNavHeight] = useState(0);
+
+  const stepAnim = useRef(new Animated.Value(1)).current;
+  const animateStep = () => {
+    stepAnim.setValue(0);
+    Animated.timing(stepAnim, {
+      toValue: 1,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  useEffect(() => {
+    const preset = METHOD_OPTIONS.find((m) => m.key === method);
+    if (preset) setAmountUnit(preset.unit);
+  }, [method]);
+
   const steps: StepKey[] = useMemo(() => {
     if (modeChoice === true) {
-      return useDaySteps;
+      return ['mode', 'method', 'amount', 'reasons', 'sleep', 'mood', 'craving', 'symptoms', 'notes', 'review'];
     }
     if (modeChoice === false) {
-      return pauseDaySteps;
+      return ['mode', 'sleep', 'mood', 'craving', 'symptoms', 'notes', 'review'];
     }
     return ['mode'];
   }, [modeChoice]);
+
   const [stepIdx, setStepIdx] = useState(0);
-  React.useEffect(() => {
+  useEffect(() => {
     setStepIdx((prev) => Math.min(prev, Math.max(steps.length - 1, 0)));
   }, [steps.length]);
+  useEffect(() => {
+    animateStep();
+  }, [stepIdx]);
 
-  const titles: Record<StepKey, { emoji: string; title: string }> = {
-    mode: { emoji: modeChoice === null ? '🤔' : usedToday ? '🌿' : '⏸️', title: 'Wie war dein Tag?' },
-    consumption: { emoji: '🌿', title: 'Konsum erfassen' },
-    craving: { emoji: '🔥', title: 'Suchtdruck (0–10)' },
-    sleep: { emoji: '😴', title: 'Schlaf (h)' },
-    sym_schlaf: { emoji: '🛌', title: 'Schlafstörung (0–10)' },
-    sym_reiz: { emoji: '😡', title: 'Reizbarkeit (0–10)' },
-    sym_unruhe: { emoji: '🌀', title: 'Unruhe (0–10)' },
-    sym_appetit: { emoji: '🍽️', title: 'Appetitminderung (0–10)' },
-    sym_schwitz: { emoji: '💧', title: 'Schwitzen/Unbehagen (0–10)' },
-    notes: { emoji: '📝', title: 'Notizen (optional)' },
-    review: { emoji: '✅', title: 'Übersicht' },
-  };
+  const usedToday = modeChoice === true;
 
-  const pad = (value: number) => String(value).padStart(2, '0');
-  const formatTimeString = (date: Date) => `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  const amountGrams = useMemo(() => {
+    if (!usedToday) return 0;
+    if (amountUnit === 'g') return Math.max(0, amountValue);
+    if (amountUnit === 'mg_thc') return Math.max(0, amountValue / 1000);
+    return 0;
+  }, [usedToday, amountUnit, amountValue]);
 
-  // Stable 0-10 slider using @react-native-community/slider
-  function NumberSlider({ value, set, min = 0, max = 10 }: { value: number; set: (v: string) => void; min?: number; max?: number }) {
-    const [live, setLive] = useState(() => Math.max(min, Math.min(max, Math.round(value ?? 0))));
-    React.useEffect(() => {
-      setLive(Math.max(min, Math.min(max, Math.round(value ?? 0))));
-    }, [value, min, max]);
-    return (
-      <View>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-          <Text style={styles.label}>{min}</Text>
-          <Text style={[styles.label, { fontWeight: '700' }]}>{live}</Text>
-          <Text style={styles.label}>{max}</Text>
-        </View>
-        <Slider
-          value={live}
-          step={1}
-          minimumValue={min}
-          maximumValue={max}
-          minimumTrackTintColor="#16A34A"
-          maximumTrackTintColor="rgba(74,42,22,0.15)"
-          thumbTintColor="#16A34A"
-          onValueChange={(v: number) => setLive(Math.round(v))}
-          onSlidingComplete={(v: number) => set(String(Math.round(v)))}
-        />
-      </View>
-    );
-  }
+  const computedJoints =
+    usedToday && gramsPerJoint > 0 && amountGrams > 0 ? amountGrams / gramsPerJoint : undefined;
 
-  // Float slider (e.g., sleep hours)
-  function FloatSlider({ value, set, min = 0, max = 24, step = 0.5, decimals = 1 }: { value: number; set: (v: string) => void; min?: number; max?: number; step?: number; decimals?: number }) {
-    const [live, setLive] = useState(() => Math.max(min, Math.min(max, Number.isFinite(value) ? value : min)));
-    React.useEffect(() => {
-      setLive(Math.max(min, Math.min(max, Number.isFinite(value) ? value : min)));
-    }, [value, min, max]);
-    const fmt = (n: number) => n.toFixed(decimals);
-    return (
-      <View>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-          <Text style={styles.label}>{fmt(min)}</Text>
-          <Text style={[styles.label, { fontWeight: '700' }]}>{fmt(live)}</Text>
-          <Text style={styles.label}>{fmt(max)}</Text>
-        </View>
-        <Slider
-          value={live}
-          step={step}
-          minimumValue={min}
-          maximumValue={max}
-          minimumTrackTintColor="#16A34A"
-          maximumTrackTintColor="rgba(74,42,22,0.15)"
-          thumbTintColor="#16A34A"
-          onValueChange={(v: number) => setLive(v)}
-          onSlidingComplete={(v: number) => set(fmt(v))}
-        />
-      </View>
-    );
-  }
-
-  const isUseDay = modeChoice === true;
-  const isPauseDay = modeChoice === false;
-  const errors = useMemo(() => {
-    const e: Record<string, string | undefined> = {};
-    const toNum = (s: string) => (s?.trim().length ? Number(s) : NaN);
-    const inRange = (v: number, min: number, max: number) => !Number.isNaN(v) && v >= min && v <= max;
-    const cr = toNum(cravings);
-    if (!inRange(cr, 0, 10)) e.cravings = 'Bitte Wert 0-10 eingeben';
-    const sl = toNum(sleep);
-    if (!Number.isFinite(sl) || sl < 0 || sl > 24) e.sleep = 'Bitte Stunden 0-24 eingeben';
-    if (isUseDay) {
-      const normalized = normalizeConsumptionForm(consumptionForm, gramsPerJoint);
-      if (normalized.grams <= 0) e.consumption = 'Bitte Menge größer 0 angeben.';
-      if (consumptionForm.paidByUser === 'yes' && !normalized.amountSpent) {
-        e.amountSpent = 'Bitte Betrag größer 0 € eingeben.';
-      }
-    } else if (isPauseDay) {
-      const s1 = toNum(symSchlaf);
-      const s2 = toNum(symReiz);
-      const s3 = toNum(symUnruhe);
-      const s4 = toNum(symAppetit);
-      const s5 = toNum(symSchwitz);
-      if (!inRange(s1, 0, 10)) e.symSchlaf = '0-10';
-      if (!inRange(s2, 0, 10)) e.symReiz = '0-10';
-      if (!inRange(s3, 0, 10)) e.symUnruhe = '0-10';
-      if (!inRange(s4, 0, 10)) e.symAppetit = '0-10';
-      if (!inRange(s5, 0, 10)) e.symSchwitz = '0-10';
-    }
-    return e;
-  }, [
-    isUseDay,
-    isPauseDay,
-    consumptionForm,
-    gramsPerJoint,
-    symSchlaf,
-    symReiz,
-    symUnruhe,
-    symAppetit,
-    symSchwitz,
-    cravings,
-    sleep,
-  ]);
-
-  const normalizedConsumption = normalizeConsumptionForm(consumptionForm, gramsPerJoint);
-  const amountGramsValue = usedToday ? Math.max(0, normalizedConsumption.grams) : 0;
-  const data: DailyCheckinData = {
+  const dailyData: DailyCheckinData = {
     dateISO: initial?.dateISO ?? nowISO,
-    usedToday,
-    amountGrams: amountGramsValue,
-    cravings0to10: Math.max(0, Math.min(10, Number.isFinite(+cravings) ? +cravings : 0)),
-    mood1to5: 3,
-    sleepHours: Math.max(0, Number.isFinite(+sleep) ? +sleep : 0),
+    usedToday: !!usedToday,
+    amountGrams,
+    cravings0to10: craving,
+    mood1to5: mood,
+    sleepHours: Math.max(0, sleepHours),
     notes: notes.trim() || undefined,
-    consumptionPaidByUser: usedToday ? normalizedConsumption.paidByUser : undefined,
-    consumptionAmountSpentEUR: usedToday ? normalizedConsumption.amountSpent : undefined,
-    consumptionSessionMinutes: usedToday ? normalizedConsumption.sessionMinutes : undefined,
-    consumptionMethod: usedToday ? consumptionForm.method : undefined,
-    consumptionJoints: usedToday ? normalizedConsumption.joints : undefined,
+    consumptionMethod: usedToday ? method : undefined,
+    consumptionAmountValue: usedToday ? amountValue : undefined,
+    consumptionAmountUnit: usedToday ? amountUnit : undefined,
+    consumptionJoints: computedJoints,
+    reasonCategoryIds: usedToday ? reasonCategories : undefined,
+    reasonIds: usedToday ? reasons : undefined,
+    withdrawalSymptomIds: symptoms.length ? symptoms : undefined,
+    skippedSymptoms,
     uses: usedToday
       ? [
           {
             type: 'use',
-            amountGrams: amountGramsValue,
-            form: USE_METHOD_LABELS[consumptionForm.method],
+            amountGrams,
+            form: METHOD_OPTIONS.find((m) => m.key === method)?.label ?? 'Konsum',
+            craving0to10: craving,
           },
         ]
       : undefined,
@@ -274,362 +197,623 @@ export default function MultiStepDailyCheckin({ initial, onSubmit, onCancel, sty
       ? [
           {
             type: 'pause',
-            schlafstoerung: +symSchlaf || 0,
-            reizbarkeit: +symReiz || 0,
-            unruhe: +symUnruhe || 0,
-            appetit: +symAppetit || 0,
-            schwitzen: +symSchwitz || 0,
-            craving0to10: +cravings || 0,
+            craving0to10: craving,
           },
         ]
       : undefined,
   };
 
-  function stepError(k: StepKey): string | undefined {
-    if (k === 'consumption') return errors.consumption ?? errors.amountSpent;
-    if (k === 'craving') return errors.cravings;
-    if (k === 'sleep') return errors.sleep;
-    if (k === 'sym_schlaf') return errors.symSchlaf;
-    if (k === 'sym_reiz') return errors.symReiz;
-    if (k === 'sym_unruhe') return errors.symUnruhe;
-    if (k === 'sym_appetit') return errors.symAppetit;
-    if (k === 'sym_schwitz') return errors.symSchwitz;
-    return undefined;
-  }
+  const total = steps.length;
+  const percent = Math.max(0, Math.min(1, (stepIdx + 1) / total));
 
-  function canProceed(k: StepKey): boolean {
-    if (k === 'mode') return modeChoice !== null;
-    return !stepError(k);
-  }
+  const canProceed = (key: StepKey) => {
+    if (key === 'mode') return modeChoice !== null;
+    if (key === 'amount' && usedToday) return amountValue > 0;
+    return true;
+  };
 
-  function next() {
+  const next = () => {
     const k = steps[stepIdx];
     if (!canProceed(k)) return;
-    if (stepIdx < steps.length - 1) setStepIdx(stepIdx + 1);
-  }
-  function back() {
-    if (stepIdx > 0) setStepIdx(stepIdx - 1);
-  }
+    if (stepIdx < steps.length - 1) {
+      haptics.trigger('general', 'selection');
+      setStepIdx(stepIdx + 1);
+    }
+  };
 
-  function renderStep(k: StepKey): React.ReactElement {
-    switch (k) {
+  const back = () => {
+    if (stepIdx > 0) {
+      haptics.trigger('general', 'selection');
+      setStepIdx(stepIdx - 1);
+    }
+  };
+
+  const toggleReasonCategory = (id: string) => {
+    setReasonCategories((prev) =>
+      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
+    );
+  };
+
+  const toggleReason = (id: string) => {
+    setReasons((prev) => (prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id]));
+  };
+
+  const toggleSymptom = (id: string) => {
+    setSkippedSymptoms(false);
+    setSymptoms((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]));
+  };
+
+  const filteredReasons = useMemo(() => {
+    if (!reasonCategories.length) return REASON_OPTIONS;
+    return REASON_OPTIONS.filter((opt) => opt.categories.some((c) => reasonCategories.includes(c)));
+  }, [reasonCategories]);
+
+  const renderStep = (key: StepKey) => {
+    switch (key) {
       case 'mode':
         return (
-          <View style={{ gap: 12 }}>
-            <Text style={styles.helper}>Option antippen und anschließend mit „Weiter“ bestätigen.</Text>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TouchableOpacity
-                onPress={() => setModeChoice(true)}
-                style={[styles.modeBtn, modeChoice === true && styles.modeBtnActive]}
-                accessibilityRole="button"
+          <View style={{ gap: spacing.m }}>
+            <Text style={[styles.helper, { color: colors.textMuted }]}>
+              Starte mit der zentralen Frage.
+            </Text>
+            <View style={{ flexDirection: 'row', gap: spacing.s }}>
+              <Pressable
+                onPress={() => {
+                  haptics.trigger('general', 'impact', { intensity: 'light' });
+                  setModeChoice(true);
+                  setStepIdx(1);
+                }}
+                style={({ pressed }) => [
+                  styles.optionCard,
+                  {
+                    borderColor: modeChoice === true ? colors.primary : colors.border,
+                    backgroundColor: modeChoice === true ? colors.primaryMuted : colors.surface,
+                  },
+                  pressed && { opacity: 0.9 },
+                ]}
               >
-                <Text style={[styles.modeBtnLabel, modeChoice === true && styles.modeBtnLabelActive]}>Heute konsumiert</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setModeChoice(false)}
-                style={[styles.modeBtn, modeChoice === false && styles.modeBtnActive]}
-                accessibilityRole="button"
+                <Text style={[styles.optionEmoji, { color: colors.text }]}>🌿</Text>
+                <Text style={[styles.optionTitle, { color: colors.text }]}>Ja, konsumiert</Text>
+                <Text style={[styles.optionSubtitle, { color: colors.textMuted }]}>
+                  Heute gab es Konsum
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  haptics.trigger('general', 'impact', { intensity: 'light' });
+                  setModeChoice(false);
+                  setStepIdx(1);
+                }}
+                style={({ pressed }) => [
+                  styles.optionCard,
+                  {
+                    borderColor: modeChoice === false ? colors.primary : colors.border,
+                    backgroundColor: modeChoice === false ? colors.primaryMuted : colors.surface,
+                  },
+                  pressed && { opacity: 0.9 },
+                ]}
               >
-                <Text style={[styles.modeBtnLabel, modeChoice === false && styles.modeBtnLabelActive]}>Pausentag</Text>
-              </TouchableOpacity>
+                <Text style={[styles.optionEmoji, { color: colors.text }]}>✅</Text>
+                <Text style={[styles.optionTitle, { color: colors.text }]}>Nein, konsumfrei</Text>
+                <Text style={[styles.optionSubtitle, { color: colors.textMuted }]}>
+                  Heute nichts konsumiert
+                </Text>
+              </Pressable>
             </View>
           </View>
         );
-      case 'consumption':
+      case 'method':
         return (
-          <View style={{ gap: 12 }}>
-            <ConsumptionFormFields
-              value={consumptionForm}
-              suggestedAmount={defaultAmountSuggestion}
-              onChange={(patch) =>
-                setConsumptionForm((prev) => ({
-                  ...prev,
-                  ...patch,
-                }))
-              }
-            />
-            {errors.consumption ? <Text style={styles.error}>{errors.consumption}</Text> : null}
-            {errors.amountSpent ? <Text style={styles.error}>{errors.amountSpent}</Text> : null}
+          <View style={{ gap: spacing.s }}>
+            <View style={styles.grid}>
+              {METHOD_OPTIONS.map((option) => (
+                <Pressable
+                  key={option.key}
+                  onPress={() => {
+                    haptics.trigger('general', 'selection');
+                    setMethod(option.key);
+                    setAmountUnit(option.unit);
+                  }}
+                  style={({ pressed }) => [
+                    styles.chipCard,
+                    {
+                      borderColor: method === option.key ? colors.primary : colors.border,
+                      backgroundColor: method === option.key ? colors.primaryMuted : colors.surface,
+                    },
+                    pressed && { opacity: 0.9 },
+                  ]}
+                >
+                  <Text style={[styles.chipLabel, { color: colors.text }]}>{option.label}</Text>
+                  <Text style={[styles.chipSub, { color: colors.textMuted }]}>
+                    Standard: {option.unit === 'g' ? 'Gramm' : 'mg THC'}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
           </View>
         );
-      case 'craving':
+      case 'amount': {
+        const unitLabel = amountUnit === 'g' ? 'Gramm' : 'mg THC';
+        const min = amountUnit === 'g' ? 0 : 0;
+        const max = amountUnit === 'g' ? 3 : 100;
+        const step = amountUnit === 'g' ? 0.05 : 1;
         return (
-          <View style={styles.inputBlock}>
-            <Text style={styles.label}>Suchtdruck (0-10)</Text>
-            <NumberSlider value={Number(cravings || '0') || 0} set={setCravings} min={0} max={10} />
+          <View style={{ gap: spacing.m }}>
+            <HapticSlider
+              value={amountValue}
+              onValueChange={(v) => setAmountValue(Math.max(0, v))}
+              minimumValue={min}
+              maximumValue={max}
+              step={step}
+              label={`Menge (${unitLabel})`}
+              formatValue={(v) =>
+                amountUnit === 'g'
+                  ? `${(Math.round(v * 100) / 100).toFixed(2)} g`
+                  : `${Math.round(v)} mg`
+              }
+            />
+            <Text style={[styles.helper, { color: colors.textMuted }]}>
+              Passe die Range bei Bedarf über einen längeren Druck auf die Skala an.
+            </Text>
+          </View>
+        );
+      }
+      case 'reasons':
+        return (
+          <View style={{ gap: spacing.m }}>
+            <View style={{ flexWrap: 'wrap', flexDirection: 'row', gap: spacing.s }}>
+              {REASON_CATEGORIES.map((cat) => (
+                <Chip
+                  key={cat.id}
+                  active={reasonCategories.includes(cat.id)}
+                  label={`${cat.emoji} ${cat.label}`}
+                  onPress={() => toggleReasonCategory(cat.id)}
+                />
+              ))}
+            </View>
+            <View style={{ gap: spacing.s }}>
+              <Text style={[styles.helper, { color: colors.textMuted }]}>Gründe (Mehrfachauswahl)</Text>
+              <View style={{ flexWrap: 'wrap', flexDirection: 'row', gap: spacing.s }}>
+                {filteredReasons.map((reason) => (
+                  <Chip
+                    key={reason.id}
+                    active={reasons.includes(reason.id)}
+                    label={reason.label}
+                    onPress={() => toggleReason(reason.id)}
+                  />
+                ))}
+              </View>
+            </View>
           </View>
         );
       case 'sleep':
         return (
-          <View style={styles.inputBlock}>
-            <Text style={styles.label}>Schlaf (h)</Text>
-            <FloatSlider value={Number(sleep || '0') || 0} set={setSleep} min={0} max={24} step={0.5} decimals={1} />
-            {errors.sleep ? <Text style={styles.error}>{errors.sleep}</Text> : null}
+          <View style={{ gap: spacing.m }}>
+            <HapticSlider
+              value={sleepHours}
+              onValueChange={(v) => setSleepHours(Math.max(0, Math.min(12, v)))}
+              minimumValue={0}
+              maximumValue={12}
+              step={0.5}
+              label="Schlafdauer"
+              formatValue={(v) => formatHours(v)}
+            />
           </View>
         );
-      case 'sym_schlaf':
+      case 'mood':
         return (
-          <View style={styles.inputBlock}>
-            <Text style={styles.label}>Schlafstörung (0-10)</Text>
-            <NumberSlider value={Number(symSchlaf || '0') || 0} set={setSymSchlaf} min={0} max={10} />
+          <View style={{ gap: spacing.m }}>
+            <View style={{ alignItems: 'center', gap: spacing.xs }}>
+              <Text style={{ fontSize: 48 }}>{moodEmoji(mood)}</Text>
+              <Text style={{ color: colors.textMuted, fontWeight: '600' }}>{moodLabel(mood)}</Text>
+            </View>
+            <HapticSlider
+              value={mood}
+              onValueChange={(v) => setMood(Math.round(v))}
+              minimumValue={1}
+              maximumValue={5}
+              step={1}
+              formatValue={(v) => `${Math.round(v)}/5`}
+            />
           </View>
         );
-      case 'sym_reiz':
+      case 'craving':
         return (
-          <View style={styles.inputBlock}>
-            <Text style={styles.label}>Reizbarkeit (0-10)</Text>
-            <NumberSlider value={Number(symReiz || '0') || 0} set={setSymReiz} min={0} max={10} />
+          <View style={{ gap: spacing.m }}>
+            <HapticSlider
+              value={craving}
+              onValueChange={(v) => setCraving(Math.round(v))}
+              minimumValue={0}
+              maximumValue={10}
+              step={1}
+              formatValue={(v) => `${Math.round(v)}/10`}
+            />
           </View>
         );
-      case 'sym_unruhe':
+      case 'symptoms':
         return (
-          <View style={styles.inputBlock}>
-            <Text style={styles.label}>Unruhe (0-10)</Text>
-            <NumberSlider value={Number(symUnruhe || '0') || 0} set={setSymUnruhe} min={0} max={10} />
-          </View>
-        );
-      case 'sym_appetit':
-        return (
-          <View style={styles.inputBlock}>
-            <Text style={styles.label}>Appetitminderung (0-10)</Text>
-            <NumberSlider value={Number(symAppetit || '0') || 0} set={setSymAppetit} min={0} max={10} />
-          </View>
-        );
-      case 'sym_schwitz':
-        return (
-          <View style={styles.inputBlock}>
-            <Text style={styles.label}>Schwitzen/Unbehagen (0-10)</Text>
-            <NumberSlider value={Number(symSchwitz || '0') || 0} set={setSymSchwitz} min={0} max={10} />
+          <View style={{ gap: spacing.m }}>
+            <Text style={[styles.label, { color: colors.text }]}>
+              Gefühle & mögliche Entzugssymptome
+            </Text>
+            <View style={{ gap: spacing.m, marginTop: spacing.s }}>
+              {CHECKIN_SYMPTOM_SECTIONS.map((section) => (
+                <View key={section.id} style={{ gap: spacing.s }}>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                    {section.emoji} {section.label}
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.s }}>
+                    {section.items.map((item) => (
+                      <Chip
+                        key={item.id}
+                        active={symptoms.includes(item.id)}
+                        label={item.label}
+                        onPress={() => toggleSymptom(item.id)}
+                      />
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </View>
           </View>
         );
       case 'notes':
         return (
-          <View style={styles.inputBlock}>
-            <Text style={styles.label}>Notizen (optional)</Text>
-            <TextInput value={notes} onChangeText={setNotes} placeholder="Wie ging es dir heute?" style={[styles.input, styles.multiline]} multiline />
+          <View style={{ gap: spacing.s }}>
+            <TextInput
+              value={notes}
+              onChangeText={setNotes}
+              placeholder="Wie ging es dir heute?"
+              placeholderTextColor={colors.textMuted}
+              style={[
+                styles.input,
+                {
+                  color: colors.text,
+                  borderColor: colors.border,
+                  backgroundColor: colors.surface,
+                  minHeight: 110,
+                  textAlignVertical: 'top',
+                },
+              ]}
+              multiline
+            />
           </View>
         );
-      case 'review': {
-        const amountLabel =
-          amountGramsValue > 0
-            ? `${amountGramsValue.toFixed(2)} g${
-                normalizedConsumption.joints ? ` · ${normalizedConsumption.joints.toFixed(2)} Joints` : ''
-              }`
-            : 'Keine Angabe';
-        const durationLabel =
-          normalizedConsumption.sessionMinutes && normalizedConsumption.sessionMinutes > 0
-            ? `${normalizedConsumption.sessionMinutes} Minuten`
-            : 'Keine Angabe';
-        const costLabel =
-          consumptionForm.paidByUser === 'yes'
-            ? normalizedConsumption.amountSpent
-              ? `${normalizedConsumption.amountSpent.toFixed(2)} €`
-              : 'Betrag offen'
-            : consumptionForm.paidByUser === 'no'
-            ? 'Nur mitgeraucht'
-            : 'Keine Angabe';
-        const reviewRows = usedToday
-          ? [
-              { icon: 'leaf-outline' as const, label: 'Modus', value: 'Konsumtag' },
-              { icon: 'analytics-outline' as const, label: 'Menge', value: amountLabel },
-              { icon: 'flask-outline' as const, label: 'Art', value: USE_METHOD_LABELS[consumptionForm.method] },
-              { icon: 'time-outline' as const, label: 'Dauer', value: durationLabel },
-              { icon: 'wallet-outline' as const, label: 'Kosten', value: costLabel },
-            ]
-          : [
-              { icon: 'calendar-outline' as const, label: 'Modus', value: 'Pausentag' },
-              { icon: 'bed-outline' as const, label: 'Schlafstörung', value: symSchlaf },
-              { icon: 'alert-circle-outline' as const, label: 'Reizbarkeit', value: symReiz },
-              { icon: 'pulse-outline' as const, label: 'Unruhe', value: symUnruhe },
-              { icon: 'restaurant-outline' as const, label: 'Appetit', value: symAppetit },
-              { icon: 'water-outline' as const, label: 'Schwitzen', value: symSchwitz },
-            ];
-        const sharedRows = [
-          { icon: 'flame-outline' as const, label: 'Suchtdruck', value: cravings },
-          { icon: 'moon-outline' as const, label: 'Schlaf', value: `${sleep} h` },
-        ];
+      case 'review':
         return (
-          <ScrollView style={styles.previewScroll} contentContainerStyle={{ gap: 12 }}>
-            <View style={styles.preview}>
-              <Text style={styles.previewTitle}>Deine Übersicht</Text>
-              <View style={{ gap: 12 }}>
-                {[...reviewRows, ...sharedRows].map((row) => (
-                  <View key={row.label} style={styles.summaryRow}>
-                    <View style={styles.summaryIcon}>
-                      <Ionicons name={row.icon} size={18} color="#4A2A16" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.summaryLabel}>{row.label}</Text>
-                      <Text style={styles.summaryValue}>{row.value}</Text>
-                    </View>
-                  </View>
-                ))}
-                {notes ? (
-                  <View style={[styles.summaryRow, styles.summaryNoteRow]}>
-                    <View style={styles.summaryIcon}>
-                      <Ionicons name="chatbubble-ellipses-outline" size={18} color="#4A2A16" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.summaryLabel}>Notiz</Text>
-                      <Text style={styles.summaryValue}>{notes}</Text>
-                    </View>
-                  </View>
-                ) : null}
-              </View>
+          <View style={{ gap: spacing.m }}>
+            <Text style={[styles.label, { color: colors.text }]}>Übersicht</Text>
+            <View
+              style={[
+                styles.previewCard,
+                { borderColor: colors.border, backgroundColor: colors.surfaceMuted },
+              ]}
+            >
+              <SummaryRow label="Status" value={usedToday ? 'Konsumiert' : 'Konsumfrei'} />
+              {usedToday ? (
+                <>
+                  <SummaryRow
+                    label="Art"
+                    value={METHOD_OPTIONS.find((m) => m.key === method)?.label ?? '–'}
+                  />
+                  <SummaryRow
+                    label="Menge"
+                    value={
+                      amountUnit === 'g'
+                        ? `${amountGrams.toFixed(2)} g`
+                        : `${Math.round(amountValue)} mg THC`
+                    }
+                  />
+                  {reasons.length ? (
+                    <SummaryRow
+                      label="Gründe"
+                      value={REASON_OPTIONS.filter((r) => reasons.includes(r.id))
+                        .map((r) => r.label)
+                        .join(', ')}
+                    />
+                  ) : null}
+                </>
+              ) : null}
+              <SummaryRow label="Schlaf" value={formatHours(sleepHours)} />
+              <SummaryRow label="Stimmung" value={`${moodEmoji(mood)} ${mood}/5`} />
+              <SummaryRow label="Suchtdruck" value={`${craving}/10`} />
+              {symptoms.length ? (
+                <SummaryRow
+                  label="Symptome"
+                  value={symptoms.length > 3 ? `${symptoms.length} ausgewählt` : symptoms.join(', ')}
+                />
+              ) : skippedSymptoms ? (
+                <SummaryRow label="Symptome" value="Übersprungen / keine Angabe" />
+              ) : null}
+              {notes ? <SummaryRow label="Notizen" value={notes} /> : null}
             </View>
-          </ScrollView>
+          </View>
         );
-      }
     }
-    return <View />;
-  }
+    return null;
+  };
 
   const current = steps[stepIdx];
-  const total = modeChoice === null ? useDaySteps.length : steps.length;
-  const { emoji, title } = titles[current];
-  const percent = Math.max(0, Math.min(1, (stepIdx + 1) / total));
-
   const isReview = current === 'review';
-  const disableNext = !isReview && !canProceed(current);
-  const primaryLabel = isReview ? 'Check-in speichern' : 'Weiter';
+  const hasSymptomsSelection = symptoms.length > 0;
+  const disableNext = current === 'mode' ? modeChoice === null : current === 'amount' && usedToday && amountValue <= 0;
+  const primaryLabel =
+    isReview
+      ? 'Check-in speichern'
+      : current === 'symptoms' && !hasSymptomsSelection
+      ? 'Überspringen'
+      : 'Weiter';
+  const promptEmoji =
+    current === 'mode'
+      ? modeChoice === null
+        ? '🤔'
+        : usedToday
+        ? '🌿'
+        : '✅'
+      : current === 'mood'
+      ? null
+      : '✨';
+
+  const footerOffset = navHeight || spacing.xl * 2 + insets.bottom;
+  const extraBottomSpacing = spacing.xl;
+  const scrollBottomPadding = footerOffset + extraBottomSpacing;
 
   return (
-    <View style={[styles.wrap, style]}>
-      <View style={styles.progressHeader}>
-        <View style={styles.progressBarTrack}>
-          <View style={[styles.progressBarFill, { width: `${percent * 100}%` }]} />
+    <SafeAreaView
+      style={[styles.safeArea, { backgroundColor: colors.surface }]}
+      edges={['bottom', 'left', 'right']}
+    >
+      <View style={[styles.wrap, { backgroundColor: colors.surface }, style]}>
+        <View
+          style={[
+            styles.content,
+            { paddingBottom: scrollBottomPadding },
+          ]}
+        >
+        <View style={styles.progressHeader}>
+          <View style={[styles.progressBarTrack, { backgroundColor: colors.border }]}>
+            <View
+              style={[
+                styles.progressBarFill,
+                { width: `${percent * 100}%`, backgroundColor: colors.primary },
+              ]}
+            />
+          </View>
+          <Text style={[styles.progress, { color: colors.textMuted }]}>
+            Schritt {Math.min(stepIdx + 1, total)} / {total}
+          </Text>
         </View>
-        <Text style={styles.progress}>{`Schritt ${Math.min(stepIdx + 1, total)} / ${total}`}</Text>
-      </View>
-      <View style={styles.stage}>
-        <View style={styles.prompt}>
-          <Text style={styles.stepEmoji}>{emoji}</Text>
-          <Text style={styles.h1}>{title}</Text>
-        </View>
-        <View style={styles.stepContent}>{renderStep(current)}</View>
-      </View>
 
-      <View style={styles.navRow}>
-        <TouchableOpacity
-          style={[styles.buttonGhost, (stepIdx === 0 && !onCancel) && styles.buttonGhostDisabled]}
-          onPress={stepIdx === 0 ? onCancel ?? undefined : back}
-          disabled={stepIdx === 0 && !onCancel}
-          accessibilityRole="button"
-        >
-          <Text style={styles.buttonGhostLabel}>{stepIdx === 0 ? (onCancel ? 'Abbrechen' : 'Zurück') : 'Zurück'}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.button, disableNext && styles.buttonDisabled]}
-          onPress={() => {
-            if (isReview) {
-              onSubmit?.(data);
-            } else {
-              next();
-            }
+        <Animated.View
+          style={{
+            opacity: stepAnim,
+            transform: [
+              {
+                translateY: stepAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [12, 0],
+                }),
+              },
+            ],
           }}
-          disabled={disableNext}
-          accessibilityRole="button"
         >
-          <Text style={styles.buttonLabel}>{primaryLabel}</Text>
-        </TouchableOpacity>
+          <View
+            style={[
+              styles.stage,
+              {
+                backgroundColor: 'transparent',
+                borderColor: 'transparent',
+                paddingBottom: scrollBottomPadding,
+              },
+            ]}
+          >
+            <View style={styles.prompt}>
+              {promptEmoji ? (
+                <Text style={[styles.stepEmoji, { color: colors.text }]}>{promptEmoji}</Text>
+              ) : null}
+              <Text style={[styles.h1, { color: colors.text }]}>
+                {
+                  {
+                    mode: 'Hast du heute konsumiert?',
+                    method: 'Was hast du konsumiert?',
+                    amount: 'Wie viel ungefähr?',
+                    reasons: 'Warum hast du konsumiert?',
+                    sleep: 'Wie viel hast du geschlafen?',
+                    mood: 'Wie ist deine Stimmung?',
+                    craving: 'Wie stark ist dein Suchtdruck?',
+                    symptoms: 'Was trifft zu?',
+                    notes: 'Notizen (optional)',
+                    review: 'Zusammenfassung',
+                  }[current]
+                }
+              </Text>
+            </View>
+            <ScrollView
+              contentContainerStyle={{
+                gap: spacing.m,
+                paddingBottom: scrollBottomPadding,
+                paddingTop: spacing.m,
+              }}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {renderStep(current)}
+            </ScrollView>
+          </View>
+        </Animated.View>
+
+        </View>
+
+        <View
+          style={[
+            styles.navContainer,
+            {
+              paddingBottom: insets.bottom,
+              backgroundColor: colors.surface,
+              borderTopColor: colors.border,
+              paddingHorizontal: spacing.l,
+              paddingTop: spacing.m,
+            },
+          ]}
+          onLayout={(e) => setNavHeight(e.nativeEvent.layout.height)}
+        >
+          <View style={styles.navRow}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.buttonGhost,
+                { borderColor: colors.border },
+                pressed && { opacity: 0.8 },
+                stepIdx === 0 && !onCancel ? styles.buttonGhostDisabled : null,
+              ]}
+              onPress={stepIdx === 0 ? onCancel ?? undefined : back}
+              disabled={stepIdx === 0 && !onCancel}
+            >
+              <Text style={[styles.buttonGhostLabel, { color: colors.text }]}>
+                {stepIdx === 0 ? (onCancel ? 'Abbrechen' : 'Zurück') : 'Zurück'}
+              </Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                styles.button,
+                {
+                  backgroundColor: disableNext ? colors.border : colors.primary,
+                },
+                pressed && !disableNext ? { opacity: 0.9 } : null,
+              ]}
+              onPress={() => {
+                if (isReview) {
+                  onSubmit?.(dailyData);
+                  haptics.trigger('general', 'success');
+                } else {
+                  if (current === 'symptoms' && !hasSymptomsSelection) {
+                    setSkippedSymptoms(true);
+                    setSymptoms([]);
+                  }
+                  next();
+                }
+              }}
+              disabled={disableNext}
+            >
+              <Text style={[styles.buttonLabel, { color: colors.surface }]}>{primaryLabel}</Text>
+            </Pressable>
+          </View>
+        </View>
       </View>
+    </SafeAreaView>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  const { theme } = useTheme();
+  return (
+    <View style={{ gap: 4 }}>
+      <Text style={{ fontSize: 12, color: theme.colors.textMuted, textTransform: 'uppercase', fontWeight: '700' }}>
+        {label}
+      </Text>
+      <Text style={{ fontSize: 16, color: theme.colors.text, fontWeight: '600' }}>{value}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { flexGrow: 1, padding: 16, gap: 16, minHeight: 420 },
+  safeArea: {
+    flex: 1,
+  },
+  wrap: {
+    flex: 1,
+    minHeight: 420,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: spacing.l,
+    paddingTop: spacing.l,
+    gap: spacing.m,
+  },
   progressHeader: { gap: 6 },
-  h1: { fontSize: 22, fontWeight: '700', fontFamily: 'Inter-Bold', color: '#4A2A16', textAlign: 'center' },
-  progress: { color: '#8A5D3E', fontSize: 12, fontFamily: 'Inter-SemiBold' },
+  h1: { fontSize: 22, fontWeight: '700', textAlign: 'center' },
+  progress: { fontSize: 12, fontWeight: '600' },
   stepEmoji: { fontSize: 36, textAlign: 'center' },
-  progressBarTrack: { height: 8, borderRadius: 999, backgroundColor: 'rgba(74,42,22,0.12)' },
-  progressBarFill: { height: 8, borderRadius: 999, backgroundColor: '#E08C55' },
+  progressBarTrack: { height: 8, borderRadius: 999, overflow: 'hidden' },
+  progressBarFill: { height: 8, borderRadius: 999 },
   stage: {
-    minHeight: 300,
-    borderRadius: 24,
-    padding: 24,
-    justifyContent: 'center',
-    gap: 20,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.25)',
+    borderRadius: radius.xl,
+    paddingHorizontal: spacing.m,
+    paddingTop: spacing.m,
+    justifyContent: 'flex-start',
+    gap: spacing.m,
+    borderWidth: 0,
   },
   prompt: { alignItems: 'center', gap: 6 },
-  stepContent: { gap: 12 },
-  navRow: { flexDirection: 'row', gap: 12 },
-  inputBlock: { gap: 6 },
-  label: { color: '#1b1b1f', fontSize: 14, fontFamily: 'Inter-SemiBold' },
-  helper: { color: '#1b1b1f', fontSize: 12, fontFamily: 'Inter-Regular', opacity: 0.7 },
-  input: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#E4BB90',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: Platform.select({ ios: 12, android: 10 }),
-    color: '#4A2A16',
-    fontFamily: 'Inter-Regular',
-    backgroundColor: '#fffdf8',
+  navContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 0,
+    paddingTop: 0,
+    paddingBottom: spacing.s,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
-  multiline: { minHeight: 96, textAlignVertical: 'top' },
-  previewScroll: { maxHeight: 360, borderRadius: 18 },
-  preview: {
-    padding: 16,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.2)',
-    gap: 12,
-  },
-  previewTitle: { color: '#1b1b1f', fontWeight: '700', fontFamily: 'Inter-SemiBold', fontSize: 16 },
-  summaryRow: {
+  navRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    paddingVertical: 6,
+    gap: spacing.s,
+    paddingHorizontal: 0,
   },
-  summaryIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    backgroundColor: 'rgba(22,163,74,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
+  label: { fontSize: 15, fontWeight: '700' },
+  helper: { fontSize: 13, fontWeight: '500' },
+  optionCard: {
+    flex: 1,
+    padding: spacing.m,
+    borderRadius: radius.l,
+    borderWidth: 1,
+    gap: spacing.s / 2,
   },
-  summaryLabel: { color: '#4f4f57', fontSize: 12, textTransform: 'uppercase', fontFamily: 'Inter-SemiBold' },
-  summaryValue: { color: '#1b1b1f', fontSize: 16, fontFamily: 'Inter-SemiBold', marginTop: 2 },
-  summaryNoteRow: { backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 12, padding: 12 },
-  error: { color: '#c85b3a', fontSize: 12, marginTop: 4, fontFamily: 'Inter-SemiBold' },
+  optionEmoji: { fontSize: 24 },
+  optionTitle: { fontSize: 16, fontWeight: '700' },
+  optionSubtitle: { fontSize: 13, fontWeight: '500' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.s },
+  chipCard: {
+    width: '48%',
+    borderRadius: radius.l,
+    borderWidth: 1,
+    padding: spacing.m,
+    gap: 4,
+  },
+  chipLabel: { fontSize: 15, fontWeight: '700' },
+  chipSub: { fontSize: 12, fontWeight: '500' },
+  input: {
+    borderWidth: 1,
+    borderRadius: radius.l,
+    paddingHorizontal: spacing.m,
+    paddingVertical: spacing.s,
+  },
   button: {
     flex: 1,
-    backgroundColor: '#16A34A',
-    paddingVertical: 14,
-    borderRadius: 12,
+    paddingVertical: spacing.m,
+    borderRadius: radius.l,
     alignItems: 'center',
   },
-  buttonDisabled: { backgroundColor: 'rgba(22,163,74,0.4)' },
-  buttonLabel: { color: 'white', fontWeight: '700', fontFamily: 'Inter-SemiBold' },
+  buttonLabel: { fontWeight: '700', fontSize: 16 },
   buttonGhost: {
     flex: 1,
-    backgroundColor: 'rgba(74,42,22,0.08)',
-    paddingVertical: 14,
-    borderRadius: 12,
+    borderWidth: 1,
+    borderRadius: radius.l,
+    paddingVertical: spacing.m,
     alignItems: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#D6A477',
   },
   buttonGhostDisabled: { opacity: 0.5 },
-  buttonGhostLabel: { color: '#4A2A16', fontWeight: '700', fontFamily: 'Inter-SemiBold' },
-  modeBtn: {
-    flex: 1,
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#E4BB90',
-    backgroundColor: '#fffdf8',
+  buttonGhostLabel: { fontWeight: '700', fontSize: 16 },
+  previewCard: {
+    borderRadius: radius.l,
+    borderWidth: 1,
+    padding: spacing.m,
+    gap: spacing.s,
   },
-  modeBtnActive: { backgroundColor: '#F7C99E', borderColor: '#E08C55' },
-  modeBtnLabel: { color: '#8A5D3E', fontWeight: '600', fontFamily: 'Inter-SemiBold' },
-  modeBtnLabelActive: { color: '#4A2A16', fontFamily: 'Inter-SemiBold' },
+  sectionTitle: { fontSize: 14, fontWeight: '700' },
+  skipButton: {
+    paddingHorizontal: spacing.m,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+  },
 });

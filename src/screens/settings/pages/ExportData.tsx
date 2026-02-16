@@ -75,6 +75,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  loader: {
+    marginTop: spacing.xl,
+  },
   scrollContent: {
     padding: spacing.xl,
     paddingBottom: spacing.xxl,

@@ -59,7 +59,7 @@ const styles = StyleSheet.create({
   switchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.m,
+    gap: spacing.md,
     marginBottom: spacing.sm,
   },
   switchLabel: {

@@ -17,79 +17,260 @@ export type Article = {
 
 export const ARTICLES: Article[] = [
   {
-    id: 'suchtverlagerung',
-    slug: 'suchtverlagerungen-verstehen-bekaempfen',
-    tag: 'Strategie',
-    readMinutes: 4,
-    title: 'Suchtverlagerungen verstehen & stoppen',
+    id: 'suchtverlagerung-stoppen',
+    slug: 'suchtverlagerung-verstehen-und-stoppen',
+    tag: 'Wissen',
+    readMinutes: 6,
+    title: 'Suchtverlagerung verstehen 🧠',
     excerpt:
-      'Manchmal rutscht das Verlangen von Cannabis zu anderen Dingen – hier lernst du, das früh zu merken und freundlich gegenzusteuern.',
-    content: `## 🧭 Kurz gesagt
-Suchtverlagerung bedeutet: Dein Kopf sucht neue „Kicks“. Das ist normal – und handhabbar. Wichtig ist, früh zu erkennen, freundlich gegenzusteuern.
+      'Was Suchtverlagerung bedeutet, woran du sie erkennst und wie du mit kleinen Schritten gegensteuerst, ohne dich fertigzumachen.',
+    content: `## Suchtverlagerung verstehen 🧠
 
-## 🔍 Woran erkennst du’s?
-- ✅ Du denkst **häufig** an eine andere Sache, die „Klick“ macht.
-- ✅ Es fließen **immer mehr Zeit oder Geld** hinein.
-- ✅ Du wirst **unruhig**, wenn es nicht geht.
+Wenn du weniger kiffen oder aufhören willst, arbeitet dein Gehirn im Hintergrund auf Hochtouren. Manchmal zeigt sich das so, dass ein anderes Verhalten plötzlich „nach vorne rutscht“: mehr zocken, mehr scrollen, mehr Süßes, mehr Alkohol, mehr Arbeit. Das nennt man **Suchtverlagerung**.
 
-## 🧠 Warum passiert das?
-- Das Belohnungssystem will weiter Dopamin.
-- Alte Auslöser (Stress, Langeweile) sind noch da.
-- Ein kleiner Ausrutscher fühlt sich wie „alles vorbei“ an – ist er nicht.
+Wichtig: Das heißt nicht, dass du „versagt“ hast – es heißt, dass dein System gerade versucht, mit Stress klarzukommen.
 
-## 🛠️ Dein 5-Schritte-Plan
-1) **Wenn-Dann-Plan**: „Wenn ich gestresst bin, **dann** gehe ich 10 Minuten raus und rufe X an.“
-2) **Urge Surfing (3 Min)**: Hinsetzen, atmen, Welle beobachten. Nicht kämpfen – vorbeiziehen lassen.
-3) **Umgebung umbauen**: Reize weg (Apps, Snacks), Alternativen hin (Wasser, Obst, Spaziergang).
-4) **Grenzen setzen**: Bildschirm-Timer, feste Zeiten, Einkaufslisten. Messbar macht locker.
-5) **Menschen einbinden**: Freund:in, Gruppe, Beratung. Du musst das nicht alleine machen.
 
-> 💬 **Mutmacher:** Ein kurzer Ausrutscher ist **Feedback**, kein Scheitern. Zurück in den Plan – weiter geht’s.`,
+
+## Was Suchtverlagerung eigentlich ist
+
+Suchtverlagerung bedeutet:
+Du reduzierst eine Gewohnheit (z. B. Cannabis) – und dein Gehirn sucht sich unbewusst etwas anderes, das ähnlich wirkt:
+
+- etwas, das dich kurz beruhigt
+- oder dich ablenkt
+- oder dir einen schnellen „Kick“ gibt
+
+Typische Beispiele:
+
+- Statt kiffen: viel mehr naschen oder Energydrinks
+- Statt kiffen: stundenlang Social Media, Serien, Gaming
+- Statt kiffen: häufiger Alkohol, Nikotin, Glücksspiel
+
+Es geht nicht darum, ob diese Dinge „verboten“ sind. Entscheidend ist:
+**Hast du noch das Gefühl, frei zu entscheiden – oder fühlt es sich eher nach Zwang an?**
+
+
+
+## Warum dein Gehirn das macht
+
+Dein Gehirn liebt zwei Dinge besonders:
+
+- **Sofortige Belohnung** („Ich fühl mich jetzt kurz besser“)
+- **Vorhersehbarkeit** („Das kenne ich, das funktioniert“)
+
+Wenn Cannabis wegfällt oder weniger wird, entsteht eine Lücke:
+
+- Gefühle, die vorher „weggedrückt“ wurden, tauchen auf
+- Langeweile, innere Unruhe oder Stress werden deutlicher
+- Das Belohnungssystem sucht etwas, das schnell Entlastung bringt
+
+Suchtverlagerung ist also eine **Strategie des Gehirns, mit Unwohlsein umzugehen** – nur leider nicht immer auf eine gesunde Art.
+
+
+
+## Woran du merkst, dass du gerade verlagerst
+
+Frag dich mal ehrlich:
+
+📌 „Mache ich das jetzt, weil ich es wirklich will – oder weil ich etwas nicht fühlen will?“  
+
+📌 „Ist das noch Genuss – oder schon Automatismus?“ 
+ 
+📌 „Wie würde es sich anfühlen, das heute einmal wegzulassen?“ (Panik / starke Unruhe = Hinweis)
+
+Wenn du merkst, dass ein anderes Verhalten plötzlich…
+
+- deutlich häufiger wird
+- schwer zu stoppen ist
+- sich eher nach „Muss“ als nach „Lust“ anfühlt
+
+…dann könnte Suchtverlagerung im Spiel sein.
+
+
+
+## Wie du gegensteuern kannst ✨
+
+Du musst nicht perfekt sein. Klein, bewusst, neugierig – das reicht. Einige Ideen:
+
+1. **Beobachten statt verurteilen**  
+   Nimm 1–2 Tage nur wahr, **wann** du zu „Ersatz-Dingen“ greifst. Uhrzeit, Stimmung, Situation. Kein Urteil, nur Notizen.
+2. **Gefühl + Bedürfnis checken**  
+   Stell dir kurz die Frage:
+   - „Was fühle ich gerade?“ (z. B. einsam, gestresst, leer)
+   - „Was bräuchte ich eigentlich?“ (Kontakt, Pause, Bewegung, Ruhe)
+3. **Mini-Alternativen testen**  
+   Statt sofort zur Ersatzhandlung zu greifen, probier **eine kleine andere Sache vorher**:
+   - 5 tiefe Atemzüge oder kurz auf den Balkon
+   - 2 Minuten strecken, bewegen, Wasser trinken
+   - Einer Person schreiben, die dir guttut  
+     Wenn du danach *immer noch* zocken/snacken willst: okay. Du hast trotzdem geübt, anders zu reagieren.
+4. **Genuss vs. Flucht unterscheiden**  
+   Erlaub dir Genuss – aber bewusst.
+   - Genuss: „Ich gönn mir das jetzt bewusst, und danach ist gut.“
+   - Flucht: „Ich will nur weg von mir selbst.“  
+     Je öfter du diesen Unterschied wahrnimmst, desto freier wirst du.
+
+
+
+## Du bist nicht „süchtig auf alles“
+
+Wenn sich gerade viele Dinge verschieben, kann schnell der Gedanke kommen:
+
+> „Super, jetzt bin ich auf alles süchtig…“
+
+Die Realität ist oft:
+
+- Dein System ist im **Umbruch**
+- Es lernt **neue Wege**, mit Gefühlen, Stress und Langeweile umzugehen
+- Suchtverlagerung ist ein **Hinweis**, wo du noch Unterstützung brauchst – kein Urteil über deinen Charakter
+
+Du darfst Schritt für Schritt lernen, wie du mit dir selbst umgehen kannst, ohne dich ständig betäuben zu müssen. Und jeder Moment, in dem du neugierig hinschaust statt dich fertigzumachen, ist bereits ein Fortschritt. 💚`,
     sources: [
       {
-        label: 'Marlatt & Gordon – Relapse Prevention (Übersicht, Modell)',
-        url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC6760427/',
+        label: 'Hazelden Betty Ford – What Is Cross Addiction?',
+        url: 'https://www.hazeldenbettyford.org/articles/what-is-cross-addiction',
       },
-      { label: 'CDC – Cannabis Use Disorder: Warnzeichen', url: 'https://www.cdc.gov/cannabis/health-effects/cannabis-use-disorder.html' },
-      { label: 'DHS – Suchthilfeverzeichnis (DE)', url: 'https://www.dhs.de/service/suchthilfeverzeichnis/' },
+      {
+        label: 'Kim et al. (2021): A systematic review of addiction substitution in recovery',
+        url: 'https://www.sciencedirect.com/science/article/abs/pii/S0272735821001264',
+      },
+      {
+        label: 'American Addiction Centers – Are Transfer Addiction and Cross Addiction Supported by Science?',
+        url: 'https://americanaddictioncenters.org/blog/transfer-addiction',
+      },
+      {
+        label: 'Bundesministerium für Gesundheit – Sucht und Drogen',
+        url: 'https://www.bundesgesundheitsministerium.de/themen/praevention/gesundheitsgefahren/sucht-und-drogen.html',
+      },
+      {
+        label: 'Deutsche Hauptstelle für Suchtfragen – Jahrbuch Sucht 2025',
+        url: 'https://www.dhs.de/fileadmin/user_upload/pdf/Jahrbuch_Sucht/JBSucht2025_komplett_WEB.pdf',
+      },
     ],
   },
   {
-    id: 'thc-abbau',
-    slug: 'thc-abbau-im-koerper-was-passiert-wann',
-    tag: 'Wissen',
+    id: 'rem-rebound-weed-pause',
+    slug: 'rem-rebound-nach-weed-pause',
+    tag: 'Selbstfürsorge',
     readMinutes: 6,
-    title: 'THC-Abbau im Körper: Was passiert wann?',
-    excerpt: 'Wie THC verarbeitet wird, wie lange es oft nachweisbar ist – und was diese Zeiten beeinflusst.',
-    content: `## ⚗️ Kurz erklärt
-- THC ist **fettliebend** und verteilt sich im Körper.
-- In der Leber entsteht erst **11-OH-THC** (wirksam), später **THC-COOH** (nicht wirksam).
-- Tests zeigen **Nutzung in einem Zeitfenster** – nicht automatisch aktuelle Wirkung.
+    title: 'Weed-Pause & krasse Träume: Was passiert?',
+    excerpt:
+      'Warum nach einer Weed-Pause intensive Träume zurückkommen, was REM-Rebound bedeutet und wie du mit einfachen Routinen und Traum-Notizen entspannter durch die Phase gehst.',
+    content: `## Wenn du nach einer Weed-Pause plötzlich wieder krass träumst
 
-## 🧪 Was im Körper passiert
-- **Aufnahme:** Inhalieren wirkt schnell; Essen wirkt später, oft länger.
-- **Umbau:** Leber wandelt THC um → Ausscheidung über Urin und Stuhl.
-- **Speicher:** Häufiger Konsum = mehr Einlagerung im Fettgewebe.
+Wenn du nach einer Weed-Pause plötzlich wieder krass träumst: 
+Nein, du wirst nicht verrückt – dein Gehirn holt nur nach, was lange unterdrückt war. 🌙✨
 
-## ⏱️ Typische Nachweiszeiten (Richtwerte)
-- **Blut (THC):** Stunden bis < 24 h; bei Vielnutzern länger möglich.
-- **Speichel:** meist 1–2 Tage.
-- **Urin (THC-COOH):** wenige Tage bis mehrere Wochen (bei täglichem Konsum > 30 Tage möglich).
-- **Haar:** bis ~90 Tage – zeigt Historie, nicht akute Wirkung.
 
-> 🚗 **Wichtig für Verkehr:** Ein positiver Test beweist *nicht* automatisch Fahruntüchtigkeit. Bitte nationale Regeln beachten.
 
-## 🎚️ Was die Dauer beeinflusst
-Häufigkeit & Menge, Körperfett, Potenz, Art der Einnahme (Vape vs. Edible), Stoffwechsel, Test-Grenzwerte.
+## Was Kiffen mit deinem Schlaf macht
 
-## 🧯 Mythen-Check
-„Detox-Tricks“ sind nicht zuverlässig belegt. Viel Training kann THC kurzzeitig aus Fettgewebe freisetzen – das macht Tests nicht sicher negativ.`,
-    sources: [
-      { label: 'Huestis – Human Cannabinoid Pharmacokinetics (Review)', url: 'https://pubmed.ncbi.nlm.nih.gov/17712819/' },
-      { label: 'Lucas – Pharmacokinetics & dynamics of cannabinoids', url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC6177698/' },
-      { label: 'ADAC – Wie lange ist THC nachweisbar? (DE)', url: 'https://www.adac.de/gesundheit/gesund-unterwegs/strasse/wie-lange-ist-thc-nachweisbar/' },
-      { label: 'BZgA drugcom – Fakten zu Cannabis (DE)', url: 'https://www.drugcom.de/' },
-    ],
+Cannabis kann sich ziemlich stark auf deinen Schlaf auswirken – vor allem auf die **REM-Phase**, also die Schlafphase, in der wir intensiv träumen.
+
+Wenn du regelmäßig kiffst, passiert oft:
+
+- Du schläfst vielleicht schneller ein
+- Du hast das Gefühl, „träumst kaum“ oder erinnerst dich selten an Träume
+- Die Tiefschlafphasen können sich verändern, die Traumphasen werden oft **gedrückt**
+
+Dein Gehirn ist aber nicht „aus“, es verschiebt nur die Balance der Schlafphasen. Die Traumarbeit wird quasi in den Hintergrund gedrängt.
+
+
+
+## Warum du beim Aufhören wieder mehr träumst
+
+Wenn du weniger oder gar nicht mehr kiffst, passiert häufig das Gegenteil:
+Dein Körper nutzt die Gelegenheit, um nachzuholen, was lange zu kurz kam.
+
+Typisch ist dann:
+
+REM-Rebound**: Dein Gehirn holt Traumphasen nach → mehr REM-Schlaf
+
+Träume werden **intensiver, bunter, emotionaler**
+
+Du erinnerst dich plötzlich an viele Details – manchmal auch an Albträume
+
+Das kann sich erst mal richtig überwältigend anfühlen. Aber:
+
+👉 Das ist **kein Zeichen**, dass mit dir etwas nicht stimmt.
+Es ist ein Zeichen, dass dein Schlafsystem wieder „hochfährt“.
+
+
+
+## Fühlt sich komisch an? Das ist normal.
+
+Viele berichten in dieser Phase:
+
+* „Ich träume mega viel und wache öfter auf.“
+* „Die Träume sind so real, das verunsichert mich.“
+* „Manche Träume triggern alte Themen oder Ängste.“
+
+Wichtig zu wissen:
+
+* Dein Gehirn nutzt Träume, um **Emotionen zu sortieren** und Erlebnisse zu verarbeiten.
+* Wenn du lange betäubt hast (egal womit), kommt beim „Auftauen“ manchmal viel auf einmal.
+* Das ist unangenehm – aber es ist auch ein Zeichen von **Heilung und Anpassung**, nicht von „kaputt“.
+
+
+
+## Was dir in dieser Traum-Phase helfen kann 😴
+
+Du musst da nicht einfach nur durchhalten – du kannst aktiv für mehr Sicherheit sorgen:
+
+1. Abend-Routine beruhigen
+
+* Helle Screens (Handy, PC, TV) rechtzeitig dimmen oder weglegen
+* Kein Doomscrolling direkt vorm Schlafen
+* Etwas, das dich runterbringt: ruhige Musik, Lesen, Dehnen, Atemübungen
+
+2. Träume „parken“
+
+Wenn Träume zu intensiv sind, hilft es manchmal, ihnen **einen Platz zu geben**:
+
+* Schreibe morgens kurz auf, was du geträumt hast – nur ein paar Stichpunkte
+* Ergänze 1 Satz: „Was brauche ich heute nach diesem Traum?“ (z. B. Ruhe, Bewegung, Kontakt)
+* So bist du nicht ausgeliefert, sondern kommst in eine **aktive, handelnde Rolle**
+
+3. Dich selbst beruhigen, statt zu bewerten
+
+Statt „Boah, was stimmt nicht mit mir?“ lieber:
+
+* „Okay, mein Gehirn arbeitet. Das ist anstrengend, aber auch ein Zeichen, dass sich etwas neu sortiert.“
+* „Das fühlt sich gerade krass an – und ich darf es Schritt für Schritt angehen.“
+
+Kurze Selbstberuhigungs-Tools im Bett:
+
+* Hand auf Brust oder Bauch legen und ein paar langsame Atemzüge
+* 5 Dinge im Raum benennen, die du siehst → das holt dich zurück ins Hier und Jetzt
+
+
+
+## Wann du dir Unterstützung holen darfst
+
+Auch wenn viel davon normal ist:
+Du musst da nicht allein durch, wenn es dich zu sehr belastet.
+
+Hol dir Unterstützung, wenn zum Beispiel:
+
+* du durch Träume über Wochen kaum schlafen kannst
+* alte Traumata oder sehr belastende Erinnerungen hochkommen
+* du merkst: „Allein krieg ich das gerade nicht gut geregelt.“
+
+Hausärzt:innen, Therapeut:innen oder Suchtberatungen sind genau dafür da – nicht, um dich zu verurteilen, sondern um dir Optionen zu zeigen.
+
+
+## Fazit: Deine Träume sind ein Zeichen, dass sich etwas bewegt
+
+Wenn du weniger oder gar nicht mehr kiffst und plötzlich wieder träumst, ist das:
+
+* kein Rückschritt
+* kein Beweis, dass du „zu sensibel“ bist
+* sondern ein Signal: Dein Gehirn arbeitet wieder freier.
+
+Du darfst diese Phase als Hinweis sehen:
+👉 „Mein Körper und mein Kopf stellen sich um – ich bin auf dem Weg.“ 🌱💤`,
+    sources: [],
   },
   {
     id: 'cannabis-sucht',
@@ -126,64 +307,6 @@ Such dir eine Situation, in der du fast automatisch kiffst (z. B. nach der Arbei
       { label: 'NIDA – Marijuana Research Report: Is Marijuana Addictive?', url: 'https://nida.nih.gov/publications/research-reports/marijuana/marijuana-addictive' },
       { label: 'WHO – Cannabis', url: 'https://www.who.int/news-room/fact-sheets/detail/cannabis' },
       { label: 'Hasin – Epidemiology of Adult DSM-5 Cannabis Use Disorder', url: 'https://pubmed.ncbi.nlm.nih.gov/26036603/' },
-    ],
-  },
-  {
-    id: 'entzug',
-    slug: 'entzugsymptome-leichter-durchstehen',
-    tag: 'Selbstfürsorge',
-    readMinutes: 5,
-    title: 'Entzugssymptome leichter durchstehen',
-    excerpt: 'Was häufig passiert, wie lange es dauert – und kleine Schritte, die sofort gut tun.',
-    content: `## 🌤️ Das passiert oft – und geht vorbei
-Start meist **nach 24–48 h**, Höhepunkt **Tag 2–6**, dann wird es Schritt für Schritt leichter. Unangenehm, ja – aber **vorübergehend**.
-
-## 📋 Häufige Symptome
-- Reizbarkeit, Unruhe, **Schlafprobleme**, lebhafte Träume
-- Weniger Appetit, Stimmungsschwankungen
-- Manchmal: Kopfweh, Schwitzen, Magen-Darm
-
-## 🧰 Dein Soforthilfe-Set
-- **🛏️ Schlaf-Basics:** Feste Zeiten, Tageslicht, Bildschirme 1 h vor dem Schlaf aus.
-- **🚶 Bewegung täglich:** Ein Spaziergang reicht. Gut für Schlaf und Stimmung.
-- **🥣 Regelmäßig essen & trinken:** Klein, simpel, genug Wasser.
-- **🫁 Atem + Achtsamkeit (3 Min):** Langsam ein, länger aus. Welle kommen & gehen lassen.
-- **✅ Mini-Aufgaben:** Duschen, Bett machen, kurze To-do – kleine Siege zählen.
-- **🛟 Hilfe holen:** Freund:in, Beratung, Hotline. Stärke heißt: fragen.
-
-## 🩺 Wann ärztlich abklären?
-Sehr starker Schlafmangel, anhaltend tiefe Stimmung, Panik, Gedanken an Selbstverletzung – bitte **sofort** Hilfe holen.`,
-    sources: [
-      { label: 'Connor – Clinical management of cannabis withdrawal', url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC9110555/' },
-      { label: 'Bonnet – Cannabis withdrawal syndrome (Übersicht)', url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC5414724/' },
-      { label: 'McCartney – Exercise & sleep during withdrawal', url: 'https://pubmed.ncbi.nlm.nih.gov/33078435/' },
-      { label: 'DigiSucht – Digitale Beratung (DE)', url: 'https://www.suchtberatung.digital/' },
-    ],
-  },
-  {
-    id: 'dranbleiben',
-    slug: 'langfristig-dranbleiben-ohne-rueckfallstress',
-    tag: 'Mindset',
-    readMinutes: 3,
-    title: 'Langfristig dranbleiben – ohne Rückfallstress',
-    excerpt: 'Ein Ausrutscher ist kein Drama. Mit einfachen Tools bleibst du freundlich auf Kurs.',
-    content: `## 🔄 Lapse ≠ Relapse
-Ein kurzer Ausrutscher ist **nicht** das Ende. Er zeigt: Hier braucht es einen besseren Plan. Atmen. Notieren. Zurück auf die Spur.
-
-## 🧱 Stabil bleiben: 5 Tools
-1) **Wenn-Dann-Pläne** für deine Top-Trigger.
-2) **Urge Surfing** (3–5 Min): Atem spüren, Welle beobachten, ziehen lassen.
-3) **Wöchentlicher Mini-Check:** Was hat geholfen? Was war schwer? Ein Satz reicht.
-4) **Belohnungen:** Kleine Erfolge feiern (Sticker, Kino, gutes Essen).
-5) **Support:** Menschen einbinden, Trigger reduzieren, Meilensteine feiern.
-
-## 📝 Mini-Pläne zum Kopieren
-- Wenn ich abends alleine bin, **dann** starte ich die Atemübung und schreibe 3 Dinge auf, die heute gut waren.
-- Wenn die Lust kommt, **dann** trinke ich ein großes Glas Wasser und gehe 5 Minuten raus.`,
-    sources: [
-      { label: 'Marlatt/Larimer – Rückfallprävention (Modell)', url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC6760427/' },
-      { label: 'Bowen et al. – Mindfulness-Based Relapse Prevention (RCT)', url: 'https://jamanetwork.com/journals/jamapsychiatry/fullarticle/1839290' },
-      { label: 'Boness et al. – CBT bei Substanzkonsum (Review)', url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC10572095/' },
     ],
   },
 ];

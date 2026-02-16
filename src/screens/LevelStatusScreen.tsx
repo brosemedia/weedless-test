@@ -6,7 +6,6 @@ import { de } from 'date-fns/locale';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import ViewShot, { captureRef } from 'react-native-view-shot';
-import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import AppBackground from '../components/AppBackground';
 import { HEADER_TOTAL_HEIGHT } from '../components/AppHeader';
@@ -119,7 +118,6 @@ export default function LevelStatusScreen() {
         return;
       }
       await Sharing.shareAsync(uri, { dialogTitle: 'Level & XP teilen' });
-      setTimeout(() => FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {}), 4000);
     } catch (error) {
       Alert.alert('Fehler', 'Karte konnte nicht geteilt werden.');
     }

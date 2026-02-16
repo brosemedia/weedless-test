@@ -11,6 +11,11 @@ export const strings = {
     loggingOut: 'Signing out...',
     logoutConfirmTitle: 'Sign Out',
     logoutConfirmMessage: 'Do you really want to sign out?',
+    logoutNoSyncTitle: 'Cloud sync is off',
+    logoutNoSyncMessage:
+      'Cloud sync is disabled. Signing out will clear local data on this device and it cannot be restored. Sign out anyway?',
+    logoutNoSyncProceed: 'Sign out without sync',
+    logoutNoSyncEnable: 'Enable cloud sync',
     cancel: 'Cancel',
     logoutConfirm: 'Sign Out',
     logoutError: 'Error',

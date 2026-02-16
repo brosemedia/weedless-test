@@ -13,8 +13,7 @@ import type { ThemeColors } from '../theme/themes';
 import {
   KPI_CONFIGS,
   buildKpiData,
-  getKpiCardColor,
-  getKpiIconColor,
+  getKpiPaletteByIndex,
   getResponsiveFontSize,
   safeProgress,
   type KpiConfig,
@@ -22,7 +21,7 @@ import {
 
 const HEADER_HEIGHT = 44;
 
-export default function StatsScreen(): JSX.Element | null {
+export default function StatsScreen(): React.ReactElement | null {
   const insets = useSafeAreaInsets();
   const { theme, mode } = useTheme();
   const palette = theme.colors;
@@ -81,9 +80,10 @@ export default function StatsScreen(): JSX.Element | null {
               rowIndex !== kpiRows.length - 1 ? styles.rowSpacing : null,
             ]}
           >
-            {row.map((config) => {
-              const iconColor = getKpiIconColor(config.type);
-              const cardColors = getKpiCardColor(config.type, { dark: mode === 'dark' });
+            {row.map((config, colIndex) => {
+              const paletteIndex = rowIndex * 2 + colIndex;
+              const cardColors = getKpiPaletteByIndex(paletteIndex, { dark: mode === 'dark' });
+              const textColor = '#FFFFFF';
               const value = config.getValue(kpiData);
               const subline = config.getSubline(kpiData);
               const progress = safeProgress(config.getProgress(kpiData));
@@ -91,7 +91,10 @@ export default function StatsScreen(): JSX.Element | null {
               const lineHeight = Math.round(fontSize * 1.15);
 
               return (
-                <View key={config.type} style={styles.card}>
+                <View
+                  key={config.type}
+                  style={[styles.card, { shadowColor: cardColors.border }]}
+                >
                   <View style={[styles.cardInner, { borderColor: cardColors.border }]}>
                     <LinearGradient
                       colors={cardColors.gradient}
@@ -102,26 +105,40 @@ export default function StatsScreen(): JSX.Element | null {
                     <MaterialCommunityIcons
                       name={config.icon as any}
                       size={32}
-                      color="#FFFFFF"
+                      color={textColor}
                       style={styles.cardIcon}
                     />
                     <Text
-                      style={[styles.cardValue, { fontSize, lineHeight }]}
+                      style={[styles.cardValue, { fontSize, lineHeight, color: textColor }]}
                       numberOfLines={1}
                       adjustsFontSizeToFit
                     >
                       {value}
                     </Text>
-                    <Text style={styles.cardSub}>{subline}</Text>
-                    <View style={styles.progressTrack}>
+                    <Text
+                      style={[
+                        styles.cardSub,
+                        { color: textColor, opacity: textColor === '#FFFFFF' ? 0.9 : 0.78 },
+                      ]}
+                    >
+                      {subline}
+                    </Text>
+                    <View style={[styles.progressTrack, { backgroundColor: cardColors.track }]}>
                       <View
                         style={[
                           styles.progressFill,
-                          { width: `${progress * 100}%`, backgroundColor: '#FFFFFF' },
+                          { width: `${progress * 100}%`, backgroundColor: textColor },
                         ]}
                       />
                     </View>
-                    <Text style={styles.cardLabel}>{config.label}</Text>
+                    <Text
+                      style={[
+                        styles.cardLabel,
+                        { color: textColor, opacity: textColor === '#FFFFFF' ? 0.9 : 0.82 },
+                      ]}
+                    >
+                      {config.label}
+                    </Text>
                   </View>
                 </View>
               );
@@ -209,31 +226,25 @@ const createStyles = (palette: ThemeColors) =>
     cardValue: {
       fontSize: 30,
       fontWeight: '800',
-      color: '#FFFFFF',
       lineHeight: 34,
     },
     cardSub: {
       marginTop: 4,
       fontSize: 11,
-      color: '#FFFFFF',
-      opacity: 0.9,
     },
     progressTrack: {
       marginTop: 12,
       height: 5,
       width: '100%',
       borderRadius: 5,
-      backgroundColor: palette.border,
       overflow: 'hidden',
     },
     progressFill: {
       height: '100%',
-      backgroundColor: palette.primary,
     },
     cardLabel: {
       marginTop: 10,
       fontSize: 12,
       fontWeight: '600',
-      color: '#FFFFFF',
     },
   });

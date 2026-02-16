@@ -1,47 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, TextInput, Switch, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import type { PaidByUser, ConsumptionMethod } from '../types/profile';
-
-// Types
-export type DailyUseEvent = {
-  type: 'use';
-  amountGrams?: number; // >= 0
-  form?: 'Joint' | 'Vape' | 'Bong' | 'Edible' | 'Andere';
-  time?: string; // "HH:MM"
-  craving0to10?: number; // 0..10
-  notes?: string;
-};
-
-export type DailyPauseEvent = {
-  type: 'pause';
-  symptoms?: string; // Freitext (z. B. Entzugssymptome)
-  time?: string; // "HH:MM"
-  // Entzugs-/Begleit-Symptome 0..10
-  schlafstoerung?: number;
-  reizbarkeit?: number;
-  unruhe?: number;
-  appetit?: number;
-  schwitzen?: number;
-  craving0to10?: number; // 0..10
-  notes?: string;
-};
-
-export type DailyCheckinData = {
-  dateISO: string;
-  usedToday: boolean;
-  amountGrams: number; // Gramm konsumiert heute
-  cravings0to10: number; // Verlangen 0–10
-  mood1to5: number; // Stimmung 1–5
-  sleepHours: number; // Schlafstunden der letzten Nacht
-  notes?: string;
-  consumptionPaidByUser?: PaidByUser;
-  consumptionAmountSpentEUR?: number;
-  consumptionSessionMinutes?: number;
-  consumptionMethod?: ConsumptionMethod;
-  consumptionJoints?: number;
-  uses?: DailyUseEvent[]; // optionale Liste einzelner Konsumereignisse
-  pauses?: DailyPauseEvent[]; // optionale Liste von Pausen/Entzugsnotizen
-};
+import type { DailyCheckinData, DailyPauseEvent, DailyUseEvent } from '../types/checkin';
 
 export type DashboardStats = {
   startedAtISO: string;

@@ -203,7 +203,7 @@ export default function PauseCalendar({ pause, onPress, onExpand, compact = fals
             <ThemedText kind="label" style={{ color: palette.textMuted, textTransform: 'uppercase', fontSize: 12 }}>
               Pause Fortschritt
             </ThemedText>
-            <ThemedText kind="h3" style={{ color: palette.text, marginTop: 4 }}>
+            <ThemedText kind="h2" style={{ color: palette.text, marginTop: 4 }}>
               {completedDays} / {totalDays} Tage
             </ThemedText>
           </View>

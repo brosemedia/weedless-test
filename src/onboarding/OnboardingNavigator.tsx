@@ -32,7 +32,7 @@ export const OnboardingNavigator: React.FC = () => {
     }
     const currentRoute = navigationRef.getCurrentRoute()?.name;
     if (currentRoute !== target) {
-      navigationRef.navigate(target);
+      navigationRef.navigate(target as never);
     }
   }, [ready, hydrated, target, navigationRef, hasCompletedOnboarding, goal, consumptionMethods]);
 

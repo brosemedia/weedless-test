@@ -102,7 +102,6 @@ export default function MoneySavedPretty() {
         curved
         thickness={3}
         hideRules
-        yAxisLabel="€ "
         yAxisTextStyle={{ opacity: 0.7 }}
         yAxisOffset={yMin}
         maxValue={yMax}

@@ -67,4 +67,4 @@ const rawConfigs: ReadonlyArray<{
   { id: 'FinalSetup', component: FinalSetupScreen },
 ];
 
-export const ONBOARDING_STEP_CONFIGS: OnboardingStepConfig[] = rawConfigs;
+export const ONBOARDING_STEP_CONFIGS: OnboardingStepConfig[] = [...rawConfigs];

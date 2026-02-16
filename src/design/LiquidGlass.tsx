@@ -144,7 +144,7 @@ export function LiquidGlass({
 
   // Bestimme Gradient-Farben basierend auf Tint
   const isDarkTint = finalTint.includes('dark') || finalTint.includes('Dark');
-  const gradientColors = isDarkTint
+  const gradientColors: readonly [string, string, string] = isDarkTint
     ? ['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.02)', 'rgba(255,255,255,0.06)']
     : ['rgba(255,255,255,0.25)', 'rgba(255,255,255,0.1)', 'rgba(255,255,255,0.2)'];
 
@@ -202,4 +202,3 @@ export function GlassCard(props: Omit<Props, 'variant'>) {
 export function GlassNavigationBar(props: Omit<Props, 'variant'>) {
   return <LiquidGlass variant="navigationBar" {...props} />;
 }
-

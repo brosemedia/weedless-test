@@ -80,13 +80,12 @@ export const onboardingSchemas = {
     motivations: z.array(z.string()).max(3),
     commitment: z.string().optional(),
   }),
+  account: z.object({
+    method: z.enum(['anonymous', 'apple', 'google']),
+  }),
   legal: z.object({
-    ageConfirmed: z.literal(true, {
-      errorMap: () => ({ message: 'Notwendig' }),
-    }),
-    disclaimerAccepted: z.literal(true, {
-      errorMap: () => ({ message: 'Notwendig' }),
-    }),
+    ageConfirmed: z.literal(true, { error: 'Notwendig' }),
+    disclaimerAccepted: z.literal(true, { error: 'Notwendig' }),
   }),
 };
 

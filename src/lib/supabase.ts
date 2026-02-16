@@ -1,8 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const supabaseUrl = 'https://ajkqtxecaxkuzpavvsoq.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFqa3F0eGVjYXhrdXpwYXZ2c29xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQxNDAyMTQsImV4cCI6MjA3OTcxNjIxNH0.PBNVmu_KRRmOHMHeYXfO9nglo1SAmMlpawWA_4UbLC8';
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  // Fail fast with a clear error so missing envs are obvious in development/CI
+  throw new Error(
+    [
+      'Supabase-Konfiguration fehlt: EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY.',
+      'Lege die Werte als Umgebungsvariablen fest (z. B. .env oder EAS Secrets).',
+    ].join(' ')
+  );
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -12,4 +22,5 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: false,
   },
 });
+
 

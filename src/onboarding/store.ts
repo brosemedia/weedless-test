@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { Goal, OnboardingProfile, ConsumptionMethod } from './types';
+import type { Goal, OnboardingProfile, ConsumptionMethod, OnboardingMode } from './types';
 import { DEFAULT_GRAMS_PER_JOINT, DEFAULT_REMINDER_TIME, ensureGoal } from './utils/validators';
 import { getStepIdsForGoal } from './stepOrder';
 
@@ -50,12 +50,14 @@ const createDefaultProfile = (): OnboardingProfile => ({
 
 type OnboardingState = {
   profile: OnboardingProfile;
+  mode: OnboardingMode;
   currentStepIndex: number;
   hasCompletedOnboarding: boolean;
   forceOnboarding: boolean;
   hydrated: boolean;
   update: <K extends keyof OnboardingProfile>(key: K, value: OnboardingProfile[K]) => void;
   mergeProfile: (patch: Partial<OnboardingProfile>) => void;
+  setMode: (mode: OnboardingMode) => void;
   setCurrentStepIndex: (index: number) => void;
   reset: () => void;
   markCompleted: () => void;
@@ -67,6 +69,7 @@ export const useOnboardingStore = create<OnboardingState>()(
   persist(
     (set, get) => ({
       profile: createDefaultProfile(),
+      mode: 'full',
       currentStepIndex: 0,
       hasCompletedOnboarding: false,
        forceOnboarding: false,
@@ -85,6 +88,7 @@ export const useOnboardingStore = create<OnboardingState>()(
             ...patch,
           },
         })),
+      setMode: (mode) => set(() => ({ mode })),
       setCurrentStepIndex: (index) =>
         set((state) => {
           const goal = state.profile.goal;
@@ -98,6 +102,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       reset: () =>
         set(() => ({
           profile: createDefaultProfile(),
+          mode: 'full',
           currentStepIndex: 0,
           hasCompletedOnboarding: false,
           forceOnboarding: false,
@@ -129,6 +134,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       },
       partialize: (state) => ({
         profile: state.profile,
+        mode: state.mode,
         currentStepIndex: state.currentStepIndex,
         hasCompletedOnboarding: state.hasCompletedOnboarding,
         forceOnboarding: state.forceOnboarding,
@@ -142,6 +148,7 @@ export { getStepIdsForGoal } from './stepOrder';
 useOnboardingStore.persist.onFinishHydration((state) => {
   useOnboardingStore.setState((current) => ({
     hydrated: true,
+    mode: (state?.mode ?? current.mode ?? 'full') as OnboardingMode,
     forceOnboarding: state?.forceOnboarding ?? current.forceOnboarding ?? false,
     profile: {
       ...current.profile,

@@ -2,6 +2,7 @@ export type Goal = 'pause' | 'reduce' | 'quit' | 'track';
 export type Unit = 'day' | 'week' | 'month';
 export type ReminderNudgeLevel = 'low' | 'medium' | 'high';
 export type Gender = 'male' | 'female' | 'diverse' | 'none';
+export type OnboardingMode = 'quick' | 'full';
 
 export type ConsumptionMethod = 'joints' | 'bongs' | 'edibles' | 'vapes' | 'blunts' | 'capsules' | 'oils' | 'pipes' | 'dabs';
 
@@ -69,7 +70,7 @@ export interface OnboardingProfile {
   // Legacy-Felder (für Kompatibilität, werden nach und nach entfernt)
   birthYear?: number;
   region?: string;
-  consumption?: {
+  consumption: {
     forms: string[];
     frequency: {
       unit: Unit;
@@ -121,7 +122,23 @@ export type OnboardingStepId =
   | 'PausePlan'
   | 'Payment'
   | 'CloudConsent'
-  | 'FinalSetup';
+  | 'FinalSetup'
+  // Legacy onboarding screens that still exist in codebase
+  | 'WelcomeGoals'
+  | 'Account'
+  | 'Legal'
+  | 'RegionCurrency'
+  | 'ConsumptionForms'
+  | 'FrequencyQuantity'
+  | 'PotencyOptional'
+  | 'SpendBudget'
+  | 'Summary'
+  | 'Motivation'
+  | 'Triggers'
+  | 'Baseline'
+  | 'Connections'
+  | 'Reminders'
+  | 'BirthYear';
 
 export interface CostEstimateResult {
   value: number;

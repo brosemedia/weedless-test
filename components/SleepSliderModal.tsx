@@ -5,6 +5,7 @@ import { toDateKey } from '../src/lib/pause';
 import { useApp } from '../src/store/app';
 import { useTheme } from '../src/theme/useTheme';
 import { spacing, radius } from '../src/design/tokens';
+import type { DayCheckin } from '../src/types/profile';
 
 type SleepSliderModalProps = {
   visible: boolean;
@@ -45,7 +46,7 @@ export function SleepSliderModal({ visible, onClose }: SleepSliderModalProps) {
   const label = React.useMemo(() => getSleepLabel(sleepHours), [sleepHours]);
 
   const handleSave = React.useCallback(() => {
-    const existing = todayLog?.checkin ?? {};
+    const existing: Partial<DayCheckin> = todayLog?.checkin ?? {};
     const roundedSleep = Math.max(0, Math.min(24, Math.round(sleepHours * 10) / 10));
     const normalizedCheckin = {
       ...existing,

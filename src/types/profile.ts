@@ -17,7 +17,8 @@ export type Profile = {
 
 export type PaidByUser = 'yes' | 'no' | 'unknown';
 
-export type ConsumptionMethod = 'joint' | 'vape' | 'bong' | 'edible' | 'other';
+export type ConsumptionMethod = 'joint' | 'vape' | 'bong' | 'pipe' | 'edible' | 'wax' | 'oil' | 'other';
+export type ConsumptionAmountUnit = 'g' | 'mg_thc' | 'hits' | 'drops' | 'other';
 
 export type ConsumptionEntry = {
   id: string;
@@ -33,6 +34,13 @@ export type ConsumptionEntry = {
 export type DayCheckin = {
   usedToday: boolean;
   amountGrams: number;
+  consumptionMethod?: ConsumptionMethod;
+  consumptionAmountValue?: number;
+  consumptionAmountUnit?: ConsumptionAmountUnit;
+  reasonCategoryIds?: string[];
+  reasonIds?: string[];
+  withdrawalSymptomIds?: string[];
+  skippedSymptoms?: boolean;
   cravings0to10: number;
   mood1to5: number;
   sleepHours: number;

@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useStore } from '../store/useStore';
 import { aggregate } from '../lib/stats';
 import type { Milestone } from '../types/milestone';
+import { mergeMilestonesWithDefaults, milestonesDiffer } from '../data/milestones';
 
 /**
  * Hook to get milestones data for the dashboard.
@@ -9,9 +10,18 @@ import type { Milestone } from '../types/milestone';
  */
 export function useDashboardMilestones() {
   const milestones = useStore((s) => s.milestones);
+  const setMilestones = useStore((s) => s.setMilestones);
   const checkins = useStore((s) => s.checkins);
   const profile = useStore((s) => s.profile);
   const diary = useStore((s) => s.diary);
+
+  useEffect(() => {
+    // Stelle sicher, dass Standard-Meilensteine auch ohne vorherigen Besuch des Meilenstein-Screens geladen werden.
+    const merged = mergeMilestonesWithDefaults(milestones);
+    if (milestonesDiffer(milestones, merged)) {
+      setMilestones(merged);
+    }
+  }, [milestones, setMilestones]);
   const currentStreak = useMemo(() => {
     let streak = 0;
     const d = new Date();

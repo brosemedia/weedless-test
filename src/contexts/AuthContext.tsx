@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
-import { Session, User, AuthError } from '@supabase/supabase-js';
+import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import type { Database } from '../types/database';
 import { markSignedIn, markSignedOut } from '../lib/authPrefs';
@@ -11,14 +11,14 @@ type AuthContextType = {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (
     email: string,
     password: string,
     fullName?: string
-  ) => Promise<{ error: AuthError | null; session: Session | null; emailConfirmationRequired: boolean }>;
+  ) => Promise<{ error: Error | null; session: Session | null; emailConfirmationRequired: boolean }>;
   signOut: () => Promise<void>;
-  resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
+  resetPassword: (email: string) => Promise<{ error: Error | null }>;
   updateProfile: (updates: Partial<Profile>) => Promise<{ error: Error | null }>;
 };
 
@@ -109,20 +109,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         lastUserIdRef.current = newUserId;
       }
       
-      // Handle SIGNED_UP event - user was just created
-      if (event === 'SIGNED_UP' && session?.user) {
-        // Try to sign in immediately if email confirmation is disabled
-        // This allows users to use the app without email confirmation
-        try {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) {
-            lastUserIdRef.current = user.id;
-            await loadProfile(user.id);
-          }
-        } catch (error) {
-          console.error('Error loading profile after signup:', error);
-        }
-      } else if (session?.user) {
+      if (session?.user) {
         await loadProfile(session.user.id);
       } else {
         setProfile(null);
@@ -164,7 +151,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     if (!data.user) {
-      return { error: new Error('User creation failed') as AuthError, session: null, emailConfirmationRequired: true };
+      return { error: new Error('User creation failed'), session: null, emailConfirmationRequired: true };
     }
 
     let activeSession: Session | null = data.session ?? null;
@@ -216,11 +203,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (profileError.code === '23502') {
             // null value in column - database structure issue
             console.error('Database structure error: id column missing DEFAULT. Please run FIX_ID_COLUMN.sql');
-          return { 
-            error: { 
-              message: 'Datenbank-Konfigurationsfehler: Die id-Spalte hat keinen DEFAULT-Wert. Bitte führen Sie FIX_ID_COLUMN.sql aus.',
-              ...profileError
-              } as AuthError,
+          return {
+            error: new Error(
+              'Datenbank-Konfigurationsfehler: Die id-Spalte hat keinen DEFAULT-Wert. Bitte fuehren Sie FIX_ID_COLUMN.sql aus.'
+            ),
             session: activeSession,
             emailConfirmationRequired: !activeSession,
           };
@@ -229,11 +215,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (profileError.code === '23503') {
             // Foreign key constraint violation
             console.error('Database structure error: Foreign key constraint issue. Please run COMPLETE_FIX.sql');
-            return { 
-              error: { 
-                message: 'Datenbank-Konfigurationsfehler: Foreign Key Constraint Problem. Bitte führen Sie COMPLETE_FIX.sql aus.',
-                ...profileError
-              } as AuthError,
+            return {
+              error: new Error(
+                'Datenbank-Konfigurationsfehler: Foreign Key Constraint Problem. Bitte fuehren Sie COMPLETE_FIX.sql aus.'
+              ),
               session: activeSession,
               emailConfirmationRequired: !activeSession,
             };
@@ -248,11 +233,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
           
           // Return error only if it's not a permission issue
-          return { 
-            error: { 
-              message: `Profil konnte nicht erstellt werden: ${profileError.message}. Bitte prüfen Sie die Datenbank-Konfiguration.`,
-              ...profileError
-            } as AuthError,
+          return {
+            error: new Error(
+              `Profil konnte nicht erstellt werden: ${profileError.message}. Bitte pruefen Sie die Datenbank-Konfiguration.`
+            ),
             session: activeSession,
             emailConfirmationRequired: !activeSession,
           };
@@ -264,10 +248,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     if (!profileExists) {
-      return { 
-        error: { 
-          message: 'Registrierung erfolgreich, aber Profil konnte nicht erstellt werden. Bitte versuchen Sie sich anzumelden.',
-        } as AuthError,
+      return {
+        error: new Error(
+          'Registrierung erfolgreich, aber Profil konnte nicht erstellt werden. Bitte versuchen Sie sich anzumelden.'
+        ),
         session: activeSession,
         emailConfirmationRequired: !activeSession,
       };

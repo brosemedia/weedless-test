@@ -18,7 +18,8 @@ import { useTheme } from '../theme/useTheme';
 import { useApp } from '../store/app';
 import { useUiStore } from '../store/ui';
 import type { DayLog } from '../types/profile';
-import MultiStepDailyCheckin, { type DailyCheckinData } from './MultiStepDailyCheckin';
+import type { DailyCheckinData } from '../types/checkin';
+import CheckinModal from './CheckinModal';
 import { TASK_XP } from '../lib/tasks';
 import ConsumptionFormFields from './ConsumptionFormFields';
 import { haptics } from '../services/haptics';
@@ -31,6 +32,7 @@ import {
   parseNumberInput,
   type ConsumptionFormValues,
 } from '../lib/consumption';
+import { normalizeCheckinConsumption } from '../lib/checkin';
 
 type ActionKey = 'consumption' | 'purchase' | 'checkin' | 'pause';
 type SheetFormKey = Exclude<ActionKey, 'pause'>;
@@ -239,6 +241,7 @@ type ConsumptionModalProps = {
 function ConsumptionModal({ visible, onClose, onSubmit, suggestedAmount }: ConsumptionModalProps) {
   const [form, setForm] = useState<ConsumptionFormValues>(() => createEmptyConsumptionForm());
   const [error, setError] = useState<string | null>(null);
+  const { theme } = useTheme();
 
   useEffect(() => {
     if (!visible) {
@@ -255,8 +258,6 @@ function ConsumptionModal({ visible, onClose, onSubmit, suggestedAmount }: Consu
       setError(maybeError);
     }
   };
-
-  const { theme } = useTheme();
   return (
     <Modal animationType="slide" visible onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }}>
@@ -317,6 +318,7 @@ type PurchaseModalProps = {
 function PurchaseModal({ visible, onClose, onSubmit }: PurchaseModalProps) {
   const [amount, setAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const { theme } = useTheme();
 
   useEffect(() => {
     if (!visible) {
@@ -333,8 +335,6 @@ function PurchaseModal({ visible, onClose, onSubmit }: PurchaseModalProps) {
       setError(maybeError);
     }
   };
-
-  const { theme } = useTheme();
   return (
     <Modal animationType="slide" visible onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }}>
@@ -375,31 +375,6 @@ function PurchaseModal({ visible, onClose, onSubmit }: PurchaseModalProps) {
             </Pressable>
           </ScrollView>
         </KeyboardAvoidingView>
-      </SafeAreaView>
-    </Modal>
-  );
-}
-
-type CheckinModalProps = {
-  visible: boolean;
-  onClose: () => void;
-  onSubmit: (data: DailyCheckinData) => void;
-};
-
-function CheckinModal({ visible, onClose, onSubmit }: CheckinModalProps) {
-  const initial = useMemo<Partial<DailyCheckinData>>(
-    () => ({ dateISO: new Date().toISOString() }),
-    [visible]
-  );
-  const { theme } = useTheme();
-  if (!visible) return null;
-  return (
-    <Modal animationType="slide" visible onRequestClose={onClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }}>
-        <FormHeader title="Daily Check-in" onClose={onClose} />
-        <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: spacing.xl }}>
-          <MultiStepDailyCheckin initial={initial} onSubmit={onSubmit} onCancel={onClose} />
-        </ScrollView>
       </SafeAreaView>
     </Modal>
   );
@@ -511,23 +486,40 @@ export default function GlobalQuickActions({ navRef, onOpenMenuRef }: GlobalQuic
 
   const submitCheckin = (data: DailyCheckinData) => {
     const key = data.dateISO.slice(0, 10);
-    const consumed = data.usedToday ? Math.max(0, data.amountGrams) : 0;
     const existing = dayLogs[key];
+    const normalized = normalizeCheckinConsumption(data);
     const updates: Partial<DayLog> & { date: string } = {
       date: key,
       notes: data.notes,
+      checkin: {
+        usedToday: data.usedToday,
+        amountGrams: data.amountGrams,
+        consumptionMethod: data.consumptionMethod,
+        consumptionAmountValue: data.consumptionAmountValue,
+        consumptionAmountUnit: data.consumptionAmountUnit,
+        reasonCategoryIds: data.reasonCategoryIds,
+        reasonIds: data.reasonIds,
+        withdrawalSymptomIds: data.withdrawalSymptomIds,
+        skippedSymptoms: data.skippedSymptoms,
+        cravings0to10: data.cravings0to10,
+        mood1to5: data.mood1to5,
+        sleepHours: data.sleepHours,
+        notes: data.notes,
+        recordedAt: Date.now(),
+      },
     };
-    if (consumed > 0) {
-      const entry = createConsumptionEntry({
-        grams: consumed,
-        joints: data.consumptionJoints,
-        sessionMinutes: data.consumptionSessionMinutes,
+
+    if (data.usedToday && normalized.grams > 0) {
+      const entry = normalized.entry ?? createConsumptionEntry({
+        grams: normalized.grams,
+        joints: normalized.joints,
+        sessionMinutes: normalized.sessionMinutes,
         method: data.consumptionMethod,
         paidByUser: data.consumptionPaidByUser ?? 'unknown',
-        amountSpent: data.consumptionAmountSpentEUR,
+        amountSpent: normalized.moneySpent,
       });
       const nextEntries = [...(existing?.consumptionEntries ?? []), entry];
-      const totalGrams = (existing?.consumedGrams ?? 0) + (entry.grams ?? consumed);
+      const totalGrams = (existing?.consumedGrams ?? 0) + (entry.grams ?? normalized.grams);
       const totalJoints = (existing?.consumedJoints ?? 0) + (entry.joints ?? 0);
       const totalMinutes = (existing?.sessionMinutes ?? 0) + (entry.sessionMinutes ?? 0);
       const moneySpent =

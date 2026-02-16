@@ -185,7 +185,7 @@ const ZenGlideLazy: React.FC = (props) => (
   </React.Suspense>
 );
 
-type RootStackParamList = {
+export type RootStackParamList = {
   Tabs: undefined;
   Help: undefined;
   Settings: { screen?: keyof SettingsStackParamList } | undefined;

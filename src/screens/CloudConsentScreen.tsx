@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, StyleSheet, Switch, Pressable } from 'react-native';
+import { View, ScrollView, StyleSheet, Switch, Pressable, Alert } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView, ThemedText, Button } from '../design/theme';
@@ -86,6 +86,26 @@ export default function CloudConsentScreen({ navigation, route }: Props) {
     }
   };
 
+  const handleToggleCloudConsent = (value: boolean) => {
+    // Wenn von an -> aus: warnen vor Datenverlust (lokal-only)
+    if (!value && cloudConsent) {
+      Alert.alert(
+        'Cloud-Sync deaktivieren?',
+        'Dann bleiben deine Daten nur auf diesem Gerät. Bei Abmeldung oder Gerätewechsel gehen sie verloren.',
+        [
+          { text: 'Abbrechen', style: 'cancel' },
+          {
+            text: 'Ja, deaktivieren',
+            style: 'destructive',
+            onPress: () => setCloudConsent(false),
+          },
+        ]
+      );
+      return;
+    }
+    setCloudConsent(value);
+  };
+
   const handleSkip = async () => {
     // Mark that consent screen was shown, so we don't nag again
     const { setCloudConsentShown } = await import('../storage/localFlags');
@@ -111,7 +131,10 @@ export default function CloudConsentScreen({ navigation, route }: Props) {
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <ThemedView style={[styles.container, { backgroundColor: 'transparent' }]}>
         <ScrollView 
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingTop: insets.top + spacing.xxl + spacing.m },
+          ]}
           showsVerticalScrollIndicator={false}
           style={styles.scrollView}
         >
@@ -140,7 +163,7 @@ export default function CloudConsentScreen({ navigation, route }: Props) {
               </View>
               <Switch
                 value={cloudConsent}
-                onValueChange={setCloudConsent}
+                onValueChange={handleToggleCloudConsent}
                 trackColor={{ false: '#767577', true: '#A1A61F' }}
                 thumbColor={cloudConsent ? '#FFFFFF' : '#f4f3f4'}
               />

@@ -11,6 +11,11 @@ export const strings = {
     loggingOut: 'Wird abgemeldet...',
     logoutConfirmTitle: 'Abmelden',
     logoutConfirmMessage: 'Möchtest du dich wirklich abmelden?',
+    logoutNoSyncTitle: 'Cloud-Sync ist aus',
+    logoutNoSyncMessage:
+      'Cloud-Sync ist deaktiviert. Bei Abmeldung werden deine lokalen Daten auf diesem Gerät gelöscht und sind nicht wiederherstellbar. Trotzdem abmelden?',
+    logoutNoSyncProceed: 'Ohne Sync abmelden',
+    logoutNoSyncEnable: 'Cloud-Sync einschalten',
     cancel: 'Abbrechen',
     logoutConfirm: 'Abmelden',
     logoutError: 'Fehler',
